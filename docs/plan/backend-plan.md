@@ -1115,9 +1115,8 @@ v1.5 — 알림 기능 (카카오 알림톡)
 
 | 출처 | 방식 | 주기 |
 |---|---|---|
-| 보조금24 (data.go.kr) | 공공 API | 주 1회 |
-| 복지로 (data.go.kr) | 공공 API | 주 1회 |
-| 귀농귀촌종합센터 (returnfarm.com) | 크롤링 (정적 HTML) | 주 1회 |
+| 복지로 (data.go.kr) | 공공 API | 주 1회 (v1 포함) |
+| 귀농귀촌종합센터 (greendaero.go.kr) | 크롤링 (정적/동적) | 주 1회 |
 | 옥천군청 홈페이지 | 크롤링 (정적/동적) | 주 1회 |
 | 충청북도청 홈페이지 | 크롤링 (정적/동적) | 월 1회 |
 
@@ -1134,13 +1133,16 @@ v1.5 — 알림 기능 (카카오 알림톡)
 
 **BeautifulSoup — 정적 HTML:**
 ```python
-# lib/crawlers/returnfarm.py
+# lib/crawlers/greendaero.py
+# 귀농귀촌종합센터: https://www.greendaero.go.kr/svc/rfph/cpif/front/home.do
 import httpx
 from bs4 import BeautifulSoup
 from apps.policies.models import Policy
 
-def crawl_returnfarm():
-    res = httpx.get('https://www.returnfarm.com/bbs/board.php?bo_table=policy')
+GREENDAERO_URL = 'https://www.greendaero.go.kr/svc/rfph/cpif/front/home.do'
+
+def crawl_greendaero():
+    res = httpx.get(GREENDAERO_URL)
     soup = BeautifulSoup(res.text, 'html.parser')
 
     for row in soup.select('table.list tr'):
@@ -1219,16 +1221,15 @@ Django Admin에서 검토 대기 목록 확인 후 활성화
 ```python
 # apps/policies/management/commands/sync_policies.py
 from django.core.management.base import BaseCommand
-from lib.crawlers.returnfarm import crawl_returnfarm
+from lib.crawlers.greendaero import crawl_greendaero
 from lib.crawlers.okcheon import crawl_okcheon_dynamic
-from lib.policy_parser import parse_policy
 
 class Command(BaseCommand):
     help = '정책 데이터 자동 수집 및 파싱'
 
     def handle(self, *args, **options):
         self.stdout.write('귀농귀촌종합센터 크롤링...')
-        crawl_returnfarm()
+        crawl_greendaero()
 
         self.stdout.write('옥천군청 크롤링...')
         crawl_okcheon_dynamic()

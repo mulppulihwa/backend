@@ -163,7 +163,7 @@ LocalPlace {
 - 정책 출처 URL 및 마감일 관리
 - 로컬 장소 등록·수정 (관리자 + 주민 제보 반영)
 - 복지로 API 연동 자동 업데이트 — **v1 포함** (data.go.kr, 장애 여부 포함 매칭)
-- 보조금24 API 연동 (v2)
+- 귀농귀촌종합센터 크롤링 (greendaero.go.kr) — v2
 
 ---
 
@@ -499,7 +499,7 @@ LocalPlace {
 | 정책 매칭 | SQL 필터 (1차) + condition_tree 평가 (2차) |
 | 정책 데이터 파싱 | Claude API — 공고문 텍스트 → 구조화 조건 자동 추출 (관리자용) |
 | 지도 | 카카오맵 JavaScript API (클라이언트) |
-| 공공 API 연동 | **복지로 API (data.go.kr) — v1 포함**, 보조금24 v2 |
+| 공공 API 연동 | **복지로 API (data.go.kr) — v1 포함**, 귀농귀촌종합센터 크롤링 v2 |
 | 호스팅 | Vercel (프론트) + Railway (백엔드 Django) + Supabase (DB) |
 | 알림 | 방식 미결정 — 웹(카카오 알림톡/PWA) vs 앱(FCM) 검토 중 |
 
@@ -647,7 +647,7 @@ Policy {
   description         // 상세 설명
   benefit_type        // 현금지원 | 교육 | 컨설팅 | 시설 | 세금감면 등
   amount              // 지원 금액 (있을 경우)
-  source              // "보조금24" | "복지로" | "수동입력" | "귀농센터"
+  source              // "복지로" | "수동입력" | "귀농센터"
 
   // 자격 조건 태그 (1차 SQL 필터용 — 빠른 인덱스 탐색)
   min_age             // 최소 나이
@@ -735,7 +735,7 @@ CREATE INDEX idx_policies_created_at ON policies (created_at DESC);
 - 카카오 알림톡 알림
 - 국가 일반 복지 정책 (기초연금, 의료급여 등)
 - 음성 입력
-- 보조금24 API 자동 연동
+- 보조금24 API 연동 (제외)
 - 정책 자동 크롤링
 
 ---
