@@ -867,8 +867,13 @@ def sync_bokjiro(page: int = 1, per_page: int = 100):
     data = res.json().get('data', [])
 
     for item in data:
+        title = item.get('서비스명', '')
         text = f"{item.get('지원대상', '')} {item.get('선정기준', '')}".strip()
         external_id = item.get('서비스ID', '')
+
+        # 타 소스(귀농센터 등)에서 같은 제목으로 이미 저장된 경우 스킵
+        if Policy.objects.filter(title=title).exclude(source='복지로').exists():
+            continue
 
         try:
             result = parse_policy(text) if text else None
@@ -877,7 +882,7 @@ def sync_bokjiro(page: int = 1, per_page: int = 100):
 
         is_active = result and result['confidence'] >= CONFIDENCE_THRESHOLD
         defaults = {
-            'title':        item.get('서비스명', ''),
+            'title':        title,
             'summary':      item.get('서비스목적요약', ''),
             'description':  item.get('지원내용', ''),
             'managing_org': item.get('소관기관명', ''),
@@ -1154,14 +1159,17 @@ def crawl_greendaero():
         end_date = cells[2].get_text(strip=True)  # 마감일
         link     = cells[0].find('a')['href']
 
-        # 중복 방지: 같은 제목+출처면 업데이트, 없으면 생성
+        # 타 소스(복지로 등)에서 같은 제목으로 이미 저장된 경우 스킵
+        if Policy.objects.filter(title=title).exclude(source='귀농센터').exists():
+            continue
+
         Policy.objects.update_or_create(
             external_id=link,
             source='귀농센터',
             defaults={
                 'title':         title,
                 'apply_end_date': parse_date(end_date),
-                'source_url':    f'https://www.returnfarm.com{link}',
+                'source_url':    f'{GREENDAERO_URL}{link}',
                 'is_active':     True,
             }
         )
