@@ -136,6 +136,9 @@ KAKAO_LOCAL_API_KEY=local_key
 # Claude API
 ANTHROPIC_API_KEY=sk-ant-...
 
+# 복지로 API (data.go.kr)
+BOKJIRO_API_KEY=119f505d...  # data.go.kr 일반 인증키
+
 # CORS (프론트 Vercel 도메인)
 CORS_ALLOWED_ORIGINS=https://your-app.vercel.app,http://localhost:3000
 ```
@@ -246,8 +249,7 @@ BENEFIT_TYPES = [
     ('시설','시설'), ('세금감면','세금감면'), ('현물','현물'), ('기타','기타'),
 ]
 SOURCES = [
-    ('보조금24','보조금24'), ('복지로','복지로'),
-    ('수동입력','수동입력'), ('귀농센터','귀농센터'),
+    ('복지로','복지로'), ('수동입력','수동입력'), ('귀농센터','귀농센터'),
 ]
 
 class Policy(models.Model):
@@ -465,6 +467,38 @@ class KakaoAuthView(APIView):
             'refresh':           str(refresh),
             'profile_completed': user.profile_completed,
         })
+```
+
+---
+
+## 7-2. Serializers
+
+서버 시작 시 `policies/views.py`가 import하므로 반드시 먼저 정의 필요.
+
+```python
+# apps/policies/serializers.py
+from rest_framework import serializers
+from .models import Policy
+
+class PolicyCardSerializer(serializers.ModelSerializer):
+    """홈 화면 카드용 — 목록에서 쓰는 최소 필드."""
+    class Meta:
+        model = Policy
+        fields = [
+            'id', 'title', 'summary', 'amount_text',
+            'benefit_type', 'apply_end_date', 'managing_org',
+        ]
+
+class PolicyDetailSerializer(serializers.ModelSerializer):
+    """정책 상세 페이지용 — 전체 필드."""
+    class Meta:
+        model = Policy
+        fields = [
+            'id', 'title', 'summary', 'description',
+            'benefit_type', 'amount', 'amount_text',
+            'apply_start_date', 'apply_end_date', 'apply_url',
+            'managing_org', 'source_url', 'source',
+        ]
 ```
 
 ---
@@ -857,14 +891,24 @@ BOKJIRO_URL = 'https://api.odcloud.kr/api/gov24/v3/serviceList'
 CONFIDENCE_THRESHOLD = 0.7
 
 
-def sync_bokjiro(page: int = 1, per_page: int = 100):
-    res = httpx.get(BOKJIRO_URL, params={
-        'page': page,
-        'perPage': per_page,
-        'serviceKey': settings.BOKJIRO_API_KEY,
-    }, timeout=30)
-    res.raise_for_status()
-    data = res.json().get('data', [])
+def sync_bokjiro(per_page: int = 100) -> int:
+    """전체 페이지를 순환하며 복지로 정책을 동기화한다."""
+    total_saved = 0
+    page = 1
+
+    while True:
+        res = httpx.get(BOKJIRO_URL, params={
+            'page': page,
+            'perPage': per_page,
+            'serviceKey': settings.BOKJIRO_API_KEY,
+        }, timeout=30)
+        res.raise_for_status()
+        body = res.json()
+        data = body.get('data', [])
+        if not data:
+            break
+
+        total_count = body.get('totalCount', 0)
 
     for item in data:
         title = item.get('서비스명', '')
@@ -897,8 +941,13 @@ def sync_bokjiro(page: int = 1, per_page: int = 100):
             external_id=external_id, source='복지로',
             defaults=defaults,
         )
+        total_saved += 1
 
-    return len(data)
+        if page * per_page >= total_count:
+            break
+        page += 1
+
+    return total_saved
 ```
 
 management command (`python manage.py sync_bokjiro`) 로 실행.
@@ -1270,16 +1319,20 @@ redis>=5.0                # Celery 브로커
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR | 3 proposals, 1 accepted, 2 deferred |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 5 | CLEAR | 7 issues, 0 critical gaps |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 6 | CLEAR | 4 issues, 0 critical gaps |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
-**2026-05-13 추가 결정 (Eng Review 후속):**
-- `is_disabled` (UserProfile) + `disability_required` (Policy) 추가 — 복지로 장애인 정책 매칭
-- 복지로 API v1 연동 확정 (§10)
-- `occupation_tags` 필터 버그 수정, `income_level` SQL 필터 추가
-- UserProfile `post_save` signal 신설
-- 유닛 테스트 25개 작성 (tests/)
+**2026-05-13 1차 Eng Review 결정:**
+- `is_disabled` (UserProfile) + `disability_required` (Policy) 추가
+- 복지로 API v1 연동 확정 (§10), `occupation_tags` 필터 버그 수정
+- UserProfile `post_save` signal 신설, 유닛 테스트 25개 작성
+
+**2026-05-13 2차 Eng Review 결정:**
+- `serializers.py` (PolicyCardSerializer, PolicyDetailSerializer) §7-2에 정의 추가
+- `BOKJIRO_API_KEY` §4 env vars에 추가
+- Policy SOURCES에서 '보조금24' 제거
+- `sync_bokjiro` 전체 페이지 루프 추가 (pagination 완성)
 
 - **UNRESOLVED:** 0
 - **VERDICT:** CEO + ENG CLEARED — Django 초기 세팅 후 구현 시작 가능.
