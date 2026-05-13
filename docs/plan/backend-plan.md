@@ -900,7 +900,65 @@ management command (`python manage.py sync_bokjiro`) 로 실행.
 
 ---
 
-## 11. requirements.txt
+## 11. 브랜치 전략
+
+> 백엔드 1인 개발 기준. 깃플로우 간소화 버전.
+
+### 브랜치 구조
+
+```
+main ──────────────────────────────────── 배포 브랜치 (Railway 자동 배포)
+  └── develop ────────────────────────── 통합 브랜치
+        ├── feature/kakao-auth
+        ├── feature/policy-match
+        ├── feature/bokjiro-sync
+        └── feature/...
+```
+
+### 규칙
+
+| 브랜치 | 역할 | 직접 push |
+|---|---|---|
+| `main` | Railway 배포 트리거. 항상 동작하는 코드만 | ❌ (develop에서 merge만) |
+| `develop` | 개발 통합. 기능 완성되면 여기서 확인 | ✅ (feature merge 후) |
+| `feature/xxx` | 기능 단위 개발 | ✅ |
+
+### 작업 흐름
+
+```
+feature/xxx 에서 개발
+    ↓
+develop 에 merge (로컬)
+    ↓
+동작 확인 후 main 에 merge
+    ↓
+Railway 자동 배포
+```
+
+### 브랜치 명명 규칙
+
+```
+feature/kakao-auth          # 카카오 로그인
+feature/policy-match        # 정책 매칭 API
+feature/bokjiro-sync        # 복지로 API 연동
+feature/region-model        # 지역 모델/시드
+fix/occupation-filter-bug   # 버그 수정
+```
+
+### 커밋 메시지 규칙
+
+```
+feat: 새 기능
+fix:  버그 수정
+docs: 문서 (커밋 로그 포함)
+refactor: 리팩토링
+test: 테스트
+chore: 설정, 의존성
+```
+
+---
+
+## 12. requirements.txt
 
 ```
 django>=5.0
@@ -918,7 +976,7 @@ gunicorn>=22.0                 # Railway 배포용 WSGI 서버
 
 ---
 
-## 11. API 문서 (drf-spectacular)
+## 13. API 문서 (drf-spectacular)
 
 팀원이 프론트 개발할 때 별도 문서 없이 브라우저에서 바로 API 확인·테스트 가능.
 
@@ -955,7 +1013,7 @@ urlpatterns = [
 
 ---
 
-## 12. 배포 구조
+## 14. 배포 구조
 
 ```
 GitHub
@@ -968,7 +1026,7 @@ push하면 자동으로 빌드 + 배포됨
 
 ---
 
-## 13. Railway 배포 전략 — 빈 껍데기 먼저
+## 15. Railway 배포 전략 — 빈 껍데기 먼저
 
 프론트 팀원이 기다리지 않도록 **기능이 없어도 Day 1에 배포부터 먼저**.  
 API가 만들어지는 순서대로 팀원이 바로바로 연결.
@@ -1040,7 +1098,7 @@ Django 서버 1개:  약 15일치
 
 ---
 
-## 12. v1.5 이후 확장 경로
+## 16. v1.5 이후 확장 경로
 
 ```
 v1.5 — 알림 기능 (카카오 알림톡)
@@ -1051,7 +1109,7 @@ v1.5 — 알림 기능 (카카오 알림톡)
 
 ---
 
-## 13. v2 — 정책 자동 수집 파이프라인
+## 17. v2 — 정책 자동 수집 파이프라인
 
 ### 수집 대상
 
