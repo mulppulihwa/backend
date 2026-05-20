@@ -63,10 +63,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 _db_url = config('DATABASE_URL').split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
 DATABASES = {
-    'default': dj_database_url.config(
-        default=_db_url,
-        conn_max_age=600,
-    )
+    'default': dj_database_url.parse(_db_url, conn_max_age=600)
 }
 
 AUTH_USER_MODEL = 'users.User'
