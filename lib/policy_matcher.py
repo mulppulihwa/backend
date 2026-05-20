@@ -66,19 +66,20 @@ def _run_matching(
 
     if ancestor_codes:
         # 전국 정책(region_codes=[]) 또는 지역 겹치는 정책
-        qs = qs.filter(region_codes__len=0) | qs.filter(
+        # __len=0은 PostgreSQL에서 array_length()가 NULL 반환해 매칭 실패 → __exact=[] 사용
+        qs = qs.filter(region_codes__exact=[]) | qs.filter(
             region_codes__overlap=ancestor_codes
         )
 
     if occ_tags:
         # occupation_tags 없는 정책(전체 대상)도 포함
-        qs = qs.filter(occupation_tags__len=0) | qs.filter(
+        qs = qs.filter(occupation_tags__exact=[]) | qs.filter(
             occupation_tags__overlap=occ_tags
         )
 
     if income:
         # income_level 없는 정책(전체 소득 대상)도 포함
-        qs = qs.filter(income_level__len=0) | qs.filter(
+        qs = qs.filter(income_level__exact=[]) | qs.filter(
             income_level__contains=[income]
         )
 

@@ -1,0 +1,31 @@
+from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.indexes import GinIndex
+from django.db import models
+
+
+class LocalPlace(models.Model):
+    CATEGORIES = [
+        ('지원금사용처', '지원금사용처'), ('농자재', '농자재'), ('농기계', '농기계'),
+        ('농협', '농협'), ('행정', '행정'), ('생활', '생활'),
+    ]
+    name = models.CharField(max_length=100)
+    category = models.CharField(max_length=20, choices=CATEGORIES)
+    address = models.TextField()
+    phone = models.CharField(max_length=20, blank=True)
+    lat = models.DecimalField(max_digits=10, decimal_places=7, null=True)
+    lng = models.DecimalField(max_digits=10, decimal_places=7, null=True)
+    subsidy_tags = ArrayField(models.TextField(), default=list)
+    receipt_claimable = models.BooleanField(default=False)
+    local_memo = models.TextField(blank=True)
+    price_notes = models.TextField(blank=True)
+    last_verified = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'local_places'
+        indexes = [
+            models.Index(fields=['category']),
+            GinIndex(fields=['subsidy_tags'], name='idx_places_subsidy_tags'),
+        ]

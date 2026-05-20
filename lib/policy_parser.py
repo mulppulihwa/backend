@@ -4,6 +4,8 @@ from typing import Optional
 import anthropic
 from pydantic import BaseModel, ValidationError, field_validator
 
+from lib.exceptions import PolicyParseError
+
 logger = logging.getLogger(__name__)
 
 client = anthropic.Anthropic()
@@ -68,9 +70,6 @@ PARSE_TOOL = {
     },
 }
 
-
-class PolicyParseError(Exception):
-    """파싱 실패 — 호출자가 사용자에게 안내할 수 있도록 구체적인 메시지 포함."""
 
 
 def parse_policy(text: str) -> dict:

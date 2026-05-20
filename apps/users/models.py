@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
@@ -9,9 +9,23 @@ HOUSEHOLD_CHOICES = [('독거', '독거'), ('부부', '부부'), ('기타', '기
 INCOME_CHOICES    = [('기초수급', '기초수급'), ('차상위', '차상위'), ('일반', '일반')]
 
 
+class UserManager(BaseUserManager):
+    def create_user(self, kakao_id, password=None, **extra_fields):
+        user = self.model(kakao_id=kakao_id, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, kakao_id, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        return self.create_user(kakao_id, password, **extra_fields)
+
+
 class User(AbstractUser):
     username = None
     kakao_id = models.TextField(unique=True)
+    objects = UserManager()
     nickname = models.TextField(blank=True)
     phone    = models.TextField(blank=True)
 

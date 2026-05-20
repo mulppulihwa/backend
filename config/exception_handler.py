@@ -3,10 +3,25 @@ from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
 
+from lib.exceptions import PolicyParseError, MatchingError
+
 logger = logging.getLogger(__name__)
 
 
 def custom_exception_handler(exc, context):
+    # 도메인 예외 → HTTP 응답으로 변환
+    if isinstance(exc, PolicyParseError):
+        return Response(
+            {'error': str(exc), 'code': 'parse_error'},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    if isinstance(exc, MatchingError):
+        return Response(
+            {'error': str(exc), 'code': 'matching_error'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     response = exception_handler(exc, context)
 
     if response is not None:

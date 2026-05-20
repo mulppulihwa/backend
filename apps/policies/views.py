@@ -133,6 +133,7 @@ def _build_profile_dict(profile) -> dict:
         'non_farm_income':     profile.non_farm_income,
         'years_since_move':    profile.years_since_move,
         'move_in_date':        str(profile.move_in_date) if profile.move_in_date else None,
+        'is_disabled':         profile.is_disabled,
     }
 
 
