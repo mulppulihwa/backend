@@ -81,3 +81,20 @@ class UserProfile(models.Model):
 
     class Meta:
         db_table = 'user_profiles'
+
+
+class UserPolicy(models.Model):
+    class Status(models.TextChoices):
+        PENDING        = '신청예정'
+        APPLIED        = '신청완료'
+        NOT_INTERESTED = '관심없음'
+
+    profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='user_policies')
+    policy  = models.ForeignKey('policies.Policy', on_delete=models.CASCADE)
+    status  = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    d7_alerted_at = models.DateTimeField(null=True, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table        = 'user_policies'
+        unique_together = [['profile', 'policy']]

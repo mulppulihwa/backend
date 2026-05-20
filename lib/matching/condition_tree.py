@@ -75,6 +75,9 @@ def _evaluate_leaf(node: dict, profile: dict) -> bool:
                 if not isinstance(value, list):
                     logger.warning('op=in requires list value, got: %s', value)
                     return False
+                # val이 list(e.g. occupation_tags)면 하나라도 포함되면 True
+                if isinstance(val, list):
+                    return any(item in value for item in val)
                 return val in value
             case 'gte':
                 return val >= value

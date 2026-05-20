@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib.policy_matcher import _run_matching, match_policies
+from lib.matching.policy_matcher import _run_matching, match_policies
 
 
 def _make_policy(
@@ -30,18 +30,18 @@ PROFILE = {
 
 
 class TestMatchPoliciesErrorHandling:
-    @patch('lib.policy_matcher.get_ancestor_codes', side_effect=Exception('DB down'))
-    @patch('lib.policy_matcher._run_matching')
+    @patch('lib.matching.policy_matcher.get_ancestor_codes', side_effect=Exception('DB down'))
+    @patch('lib.matching.policy_matcher._run_matching')
     def test_ancestor_codes_failure_uses_empty(self, mock_run, mock_get):
         mock_run.return_value = []
-        with patch('lib.policy_matcher.Policy') as mock_policy:
+        with patch('lib.matching.policy_matcher.Policy') as mock_policy:
             mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = []
             result = match_policies(PROFILE)
         # ancestor_codes 실패해도 매칭 자체는 실행됨
         assert 'policies' in result
 
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    @patch('lib.policy_matcher._run_matching', side_effect=Exception('DB error'))
+    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
+    @patch('lib.matching.policy_matcher._run_matching', side_effect=Exception('DB error'))
     def test_db_error_returns_fallback(self, mock_run, mock_get):
         from django.db import DatabaseError
         mock_run.side_effect = DatabaseError('DB error')
@@ -49,9 +49,9 @@ class TestMatchPoliciesErrorHandling:
         assert result['fallback'] is True
         assert 'error' in result
 
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    @patch('lib.policy_matcher._run_matching', return_value=[])
-    @patch('lib.policy_matcher.Policy')
+    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
+    @patch('lib.matching.policy_matcher._run_matching', return_value=[])
+    @patch('lib.matching.policy_matcher.Policy')
     def test_empty_match_returns_fallback_policies(self, mock_policy, mock_run, mock_get):
         fallback = [_make_policy()]
         mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = fallback
@@ -61,11 +61,11 @@ class TestMatchPoliciesErrorHandling:
 
 
 class TestConditionTreeEvaluation:
-    @patch('lib.policy_matcher.Policy')
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    def test_policy_with_no_condition_tree_passes(self, mock_get, mock_policy):
+    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
+    @patch('lib.matching.policy_matcher._run_matching')
+    def test_policy_with_no_condition_tree_passes(self, mock_run, mock_get):
         p = _make_policy(condition_tree=None)
-        mock_policy.objects.filter.return_value.__or__.return_value.__or__.return_value = [p]
+        mock_run.return_value = [p]
         result = match_policies(PROFILE)
         assert p in result['policies']
 
@@ -76,12 +76,12 @@ class TestConditionTreeEvaluation:
         p2 = _make_policy(apply_end_date=date(2026, 5, 20))
         p3 = _make_policy(apply_end_date=None)
 
-        from lib.policy_matcher import _run_matching
-        import lib.policy_matcher as pm
+        from lib.matching.policy_matcher import _run_matching
+        import lib.matching.policy_matcher as pm
 
         with patch.object(pm.timezone, 'now') as mock_now:
             mock_now.return_value.date.return_value = today
-            with patch('lib.policy_matcher.Policy') as mock_policy:
+            with patch('lib.matching.policy_matcher.Policy') as mock_policy:
                 mock_policy.objects.filter.return_value = MagicMock()
                 # _run_matching을 통하지 않고 정렬 로직만 검증
                 policies = [p1, p3, p2]

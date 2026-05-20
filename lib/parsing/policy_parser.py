@@ -4,7 +4,7 @@ from typing import Optional
 import anthropic
 from pydantic import BaseModel, ValidationError, field_validator
 
-from lib.exceptions import PolicyParseError
+from lib.exceptions import PolicyParseError  # noqa: lib root에 유지
 
 logger = logging.getLogger(__name__)
 

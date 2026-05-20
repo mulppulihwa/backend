@@ -1,6 +1,6 @@
 """condition_tree.py 유닛 테스트 — Django 의존 없음."""
 import pytest
-from lib.condition_tree import evaluate_tree
+from lib.matching.condition_tree import evaluate_tree
 
 
 PROFILE = {

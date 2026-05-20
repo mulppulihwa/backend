@@ -9,8 +9,8 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from lib.policy_matcher import match_policies
-from lib.policy_parser import PolicyParseError, parse_policy
+from lib.matching.policy_matcher import match_policies
+from lib.parsing.policy_parser import PolicyParseError, parse_policy
 from .models import Policy
 from .serializers import PolicyCardSerializer, PolicyDetailSerializer
 

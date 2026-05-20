@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib.policy_parser import PolicyParseError, parse_policy
+from lib.parsing.policy_parser import PolicyParseError, parse_policy
 
 
 def _make_tool_use_response(data: dict):
@@ -38,7 +38,7 @@ class TestInputValidation:
 
 
 class TestSuccessPath:
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_normal_parse(self, mock_client):
         mock_client.messages.create.return_value = _make_tool_use_response(MINIMAL_VALID)
         result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
@@ -46,7 +46,7 @@ class TestSuccessPath:
         assert result['parsed']['title'] == '테스트 정책'
         assert result['flags'] == []
 
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_income_level_validation(self, mock_client):
         data = {**MINIMAL_VALID, 'income_level': ['기초수급', '중위150%', '일반']}
         mock_client.messages.create.return_value = _make_tool_use_response(data)
@@ -54,7 +54,7 @@ class TestSuccessPath:
         assert '중위150%' not in result['parsed']['income_level']
         assert '기초수급' in result['parsed']['income_level']
 
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_confidence_clamped(self, mock_client):
         data = {**MINIMAL_VALID, 'confidence': 1.5}
         mock_client.messages.create.return_value = _make_tool_use_response(data)
@@ -63,7 +63,7 @@ class TestSuccessPath:
 
 
 class TestApiErrors:
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_rate_limit_error(self, mock_client):
         import anthropic
         mock_client.messages.create.side_effect = anthropic.RateLimitError(
@@ -72,7 +72,7 @@ class TestApiErrors:
         with pytest.raises(PolicyParseError, match='요청 한도'):
             parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
 
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_no_tool_use_block(self, mock_client):
         response = MagicMock()
         response.content = []  # tool_use 블록 없음
@@ -81,7 +81,7 @@ class TestApiErrors:
         with pytest.raises(PolicyParseError, match='거부'):
             parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
 
-    @patch('lib.policy_parser.client')
+    @patch('lib.parsing.policy_parser.client')
     def test_pydantic_validation_error(self, mock_client):
         # confidence 누락 → ValidationError → PolicyParseError
         mock_client.messages.create.return_value = _make_tool_use_response(
