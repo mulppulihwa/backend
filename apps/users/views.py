@@ -8,8 +8,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
-from .serializers import UserProfileSerializer
+from apps.policies.models import Policy
+from .models import User, UserPolicy
+from .serializers import UserPolicySerializer, UserProfileSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -161,3 +162,71 @@ class ProfileView(APIView):
             request.user.save(update_fields=['profile_completed'])
 
         return Response(serializer.data)
+
+
+class UserPolicyListView(APIView):
+    """저장된 정책 목록 조회."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = (
+            UserPolicy.objects
+            .filter(profile=request.user.profile)
+            .select_related('policy')
+            .order_by('-created_at')
+        )
+        return Response(UserPolicySerializer(qs, many=True).data)
+
+
+class UserPolicySaveView(APIView):
+    """정책 저장 (UserPolicy 생성)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, policy_id):
+        try:
+            policy = Policy.objects.get(pk=policy_id, is_active=True)
+        except Policy.DoesNotExist:
+            return Response(
+                {'error': '정책을 찾을 수 없습니다.', 'code': 'policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user_policy, created = UserPolicy.objects.get_or_create(
+            profile=request.user.profile,
+            policy=policy,
+        )
+        return Response(
+            UserPolicySerializer(user_policy).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class UserPolicyStatusView(APIView):
+    """저장된 정책 상태 변경."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, policy_id):
+        try:
+            user_policy = UserPolicy.objects.get(
+                profile=request.user.profile,
+                policy_id=policy_id,
+            )
+        except UserPolicy.DoesNotExist:
+            return Response(
+                {'error': '저장된 정책을 찾을 수 없습니다.', 'code': 'user_policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        new_status = request.data.get('status')
+        if new_status not in UserPolicy.Status.values:
+            return Response(
+                {'error': f'유효하지 않은 상태입니다. 가능한 값: {UserPolicy.Status.values}', 'code': 'invalid_status'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_policy.status = new_status
+        user_policy.save(update_fields=['status'])
+        return Response(UserPolicySerializer(user_policy).data)
