@@ -3,11 +3,13 @@ import logging
 import httpx
 from django.conf import settings
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
+from .serializers import UserProfileSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +124,40 @@ class KakaoAuthView(APIView):
             'refresh':           str(refresh),
             'profile_completed': user.profile_completed,
         })
+
+
+# profile_completed 판단 기준: region_code, birth_date, occupation_tags 모두 입력된 경우
+_REQUIRED_FIELDS = ('region_code', 'birth_date', 'occupation_tags')
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserProfileSerializer(request.user.profile)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        serializer = UserProfileSerializer(
+            request.user.profile,
+            data=request.data,
+            partial=True,
+        )
+        if not serializer.is_valid():
+            return Response(
+                {'error': serializer.errors, 'code': 'invalid_profile'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        profile = serializer.save()
+
+        # 필수 필드 모두 채워지면 profile_completed 자동 업데이트
+        is_complete = all([
+            profile.region_code,
+            profile.birth_date,
+            profile.occupation_tags,
+        ])
+        if is_complete != request.user.profile_completed:
+            request.user.profile_completed = is_complete
+            request.user.save(update_fields=['profile_completed'])
+
+        return Response(serializer.data)
