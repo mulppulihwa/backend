@@ -27,7 +27,7 @@ class ParsedPolicy(BaseModel):
     apply_end_date:  Optional[str] = None
     managing_org:    Optional[str] = None
     condition_tree:  Optional[dict] = None
-    confidence:      float
+    confidence:      float = 0.5
     flags:           list[str] = []
 
     @field_validator('income_level')
