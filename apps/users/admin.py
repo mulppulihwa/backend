@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User, UserProfile
+from .models import User, UserPolicy, UserProfile
 
 
 @admin.register(User)
@@ -29,3 +29,12 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_filter = ['gender', 'income_level', 'is_farm_registered']
     search_fields = ['user__kakao_id', 'user__nickname', 'region_code']
     raw_id_fields = ['user']
+
+
+@admin.register(UserPolicy)
+class UserPolicyAdmin(admin.ModelAdmin):
+    list_display = ['profile', 'policy', 'status', 'd7_alerted_at', 'created_at']
+    list_filter = ['status']
+    search_fields = ['profile__user__kakao_id', 'profile__user__nickname', 'policy__title']
+    raw_id_fields = ['profile', 'policy']
+    readonly_fields = ['created_at']
