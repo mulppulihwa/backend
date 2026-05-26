@@ -119,6 +119,12 @@ CORS_ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
+    if o.strip()
+]
+
 # ── 카카오 OAuth ──────────────────────────────────────────────────────────────
 
 KAKAO_CLIENT_ID = os.environ['KAKAO_CLIENT_ID']
