@@ -34,6 +34,9 @@ class Policy(models.Model):
     # 복합 조건 트리
     condition_tree = models.JSONField(null=True, blank=True)
 
+    # AI 파싱용 공고문 원문
+    raw_text = models.TextField(blank=True)
+
     # 신청 정보
     apply_start_date = models.DateField(null=True, blank=True)
     apply_end_date   = models.DateField(null=True, blank=True)
