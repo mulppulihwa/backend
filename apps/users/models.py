@@ -65,6 +65,10 @@ class UserProfile(models.Model):
     is_disabled = models.BooleanField(null=True)  # 장애 여부
 
     @property
+    def nickname(self):
+        return self.user.nickname
+
+    @property
     def age(self):
         if not self.birth_date:
             return None
