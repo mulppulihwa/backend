@@ -4,6 +4,7 @@ from .models import User, UserPolicy, UserProfile
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    nickname = serializers.ReadOnlyField()
     age = serializers.ReadOnlyField()
     years_since_move = serializers.ReadOnlyField()
 

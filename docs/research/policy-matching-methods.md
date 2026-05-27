@@ -561,3 +561,238 @@ Pipeline B 선택 조건:
 **→ 우리 서비스는 Pipeline A 채택.**  
 홈 접속마다 LLM 호출하면 동시접속자 100명 시 100번 호출 + 응답 지연 발생.  
 Pipeline B는 조건이 극도로 복잡해졌을 때 검토.
+
+---
+
+## 11. 매칭 강화 방안
+
+> Pipeline A(SQL 1차 + condition_tree 2차) 구조를 유지하면서 결과 품질을 높이는 방법들.  
+> v1 구현 이후 단계적으로 적용 검토.
+
+---
+
+### 11-1. 다중 가중치 스코어링 (Multi-factor Weighted Scoring)
+
+현재 매칭은 조건 충족 여부만 판단(이진). 충족한 조건의 종류와 수에 따라 점수를 매겨 순위를 개선할 수 있다.
+
+**설계 예시:**
+
+```python
+FIELD_WEIGHTS = {
+    'region':           30,  # 지역 조건 일치는 가장 중요
+    'age':              25,
+    'occupation_tags':  20,
+    'income_level':     15,
+    'household_type':   5,
+    'move_status':      5,
+}
+
+def score_policy(policy: Policy, profile: dict) -> int:
+    score = 0
+
+    if profile.get('age') is not None:
+        if policy.min_age <= profile['age'] <= policy.max_age:
+            score += FIELD_WEIGHTS['age']
+
+    ancestor_codes = get_ancestor_codes(profile.get('region_code', ''))
+    if not policy.region_codes or set(policy.region_codes) & set(ancestor_codes):
+        score += FIELD_WEIGHTS['region']
+
+    if not policy.occupation_tags or set(policy.occupation_tags) & set(profile.get('occupation_tags', [])):
+        score += FIELD_WEIGHTS['occupation_tags']
+
+    if not policy.income_level or profile.get('income_level') in policy.income_level:
+        score += FIELD_WEIGHTS['income_level']
+
+    return score
+```
+
+**활용:**
+- 최소 점수 이상만 "해당됨" 그룹, 그 아래는 "확인 필요" 그룹으로 분리
+- 동점 시 마감 임박 순으로 타이브레이크
+
+**장점:** 프로필이 부분적으로만 입력됐을 때 "0개 결과" 방지  
+**비용:** 코드 변경만, DB 스키마 무관
+
+---
+
+### 11-2. 프로필 누락 필드 폴백 (Progressive Relaxation)
+
+사용자가 프로필을 완전히 입력하지 않은 경우, 엄격한 조건 매칭은 결과가 0개가 되기 쉽다.  
+입력된 필드만으로 매칭하고, 누락 필드는 "조건 없음(전체 대상)"으로 간주하는 전략.
+
+**현재 코드 문제점:**
+
+```python
+# 현재: income 미입력 시 income_level 필터 자체를 건너뜀
+if income:
+    qs = qs.filter(income_level__len=0) | qs.filter(income_level__contains=[income])
+# → income 미입력이면 소득 조건이 있는 정책도 모두 포함되어 과매칭 발생 가능
+```
+
+**개선 방향 — 3단계 폴백:**
+
+```
+1단계: 모든 입력 필드 사용 → 결과 >= 3개면 반환
+         ↓ 결과 < 3개
+2단계: 선택 필드(household_type, marital_status) 제거 → 결과 >= 3개면 반환
+         ↓ 결과 < 3개
+3단계: 필수 필드(나이, 지역)만 사용 + 전체 대상 정책 포함 → 반환
+```
+
+```python
+def match_with_fallback(profile: dict) -> dict:
+    for relaxation_level in range(3):
+        result = match_policies(profile, relaxation_level=relaxation_level)
+        if len(result['policies']) >= 3:
+            return {**result, 'relaxation_level': relaxation_level}
+    return {**result, 'relaxation_level': 2}
+```
+
+**응답에 `relaxation_level` 포함** → 프론트에서 "프로필을 더 입력하면 더 정확한 결과를 볼 수 있어요" 안내 가능
+
+---
+
+### 11-3. 피드백 루프 (UserPolicy 상태 반영)
+
+`user_policies` 테이블의 `status` 필드를 매칭 순위에 반영해 재노출을 방지하고 개인화를 강화한다.
+
+**현재 상태 → 활용 방안:**
+
+| status | 현재 | 강화 후 |
+|---|---|---|
+| `신청예정` | 상태 저장만 | 목록에서 상단 고정 + "D-N 마감" 배지 |
+| `신청완료` | 상태 저장만 | 매칭 결과에서 제외 (이미 신청한 정책 재노출 방지) |
+| `관심없음` | 상태 저장만 | 같은 `benefit_type` + `managing_org` 조합 정책 순위 하락 |
+
+**구현 예시:**
+
+```python
+def filter_already_applied(policies, profile_id):
+    applied_ids = set(
+        UserPolicy.objects.filter(
+            profile_id=profile_id,
+            status=UserPolicy.Status.APPLIED,
+        ).values_list('policy_id', flat=True)
+    )
+    return [p for p in policies if p.id not in applied_ids]
+
+def deprioritize_not_interested(policies, profile_id):
+    disliked = UserPolicy.objects.filter(
+        profile_id=profile_id,
+        status=UserPolicy.Status.NOT_INTERESTED,
+    ).values_list('policy__benefit_type', 'policy__managing_org')
+    disliked_combos = set(disliked)
+
+    def sort_key(p):
+        is_disliked = (p.benefit_type, p.managing_org) in disliked_combos
+        return (1 if is_disliked else 0,)  # 비선호 하단으로
+
+    return sorted(policies, key=sort_key)
+```
+
+**비용:** 쿼리 2회 추가 (이미 캐싱 레이어 있으면 무시 가능 수준)
+
+---
+
+### 11-4. 마감 임박 부스팅 (Deadline Proximity Boost)
+
+현재 매칭 후 마감 임박 순 정렬이 있지만, 마감이 없는 상시 정책과의 순위 분리가 명확하지 않다.
+
+**개선 — 마감 구간별 가중치:**
+
+```python
+from datetime import date
+
+def deadline_boost(policy: Policy, today: date) -> int:
+    if not policy.apply_end_date:
+        return 0   # 상시 정책 → 부스트 없음
+
+    days_left = (policy.apply_end_date - today).days
+
+    if days_left < 0:
+        return -9999   # 마감 지남 → 최하단
+    elif days_left <= 7:
+        return 50      # D-7 이내 → 최상단 부스트
+    elif days_left <= 30:
+        return 20
+    elif days_left <= 90:
+        return 5
+    else:
+        return 0
+```
+
+**정렬 키 통합:**
+
+```python
+def final_sort_key(policy, score, today):
+    return -(score + deadline_boost(policy, today))
+    # 음수로 뒤집어 내림차순 정렬
+
+matched.sort(key=lambda p: final_sort_key(p, score_map[p.id], today))
+```
+
+**D-7 알림과 연계:** `user_policies.d7_alerted_at` 필드와 함께 쓰면 알림 발송 + 앱 내 부스팅 일관성 확보 (v2.2.0)
+
+---
+
+### 11-5. 벡터 검색 통합 방안 (v3 검토)
+
+Pipeline A의 SQL 필터로 잡을 수 없는 케이스 — "농업에 준하는 활동", "저소득 가구" 같은 모호한 조건 — 를  
+벡터 유사도로 보완하는 하이브리드 구조.
+
+**구조:**
+
+```
+① SQL 1차 필터 (현재 Pipeline A 유지)
+   → 후보 N개
+
+② 벡터 유사도 Re-rank (추가 레이어)
+   후보 N개를 임베딩 유사도로 재순위
+   → 상위 K개만 반환
+
+③ condition_tree 2차 평가 (현재 유지)
+```
+
+**임베딩 대상:**
+
+```python
+# 정책 저장 시 (1회성)
+policy_text = f"{policy.title} {policy.summary} {policy.description}"
+policy.embedding = embed(policy_text)   # 1536차원 벡터
+policy.save()
+
+# 매칭 시 (요청마다)
+profile_text = f"귀농 {profile.years_since_move:.0f}년차 {profile.age}세 {profile.region_name} 거주"
+query_embedding = embed(profile_text)
+```
+
+**PostgreSQL pgvector 사용:**
+
+```sql
+-- 유사도 순 정렬
+SELECT id, title, embedding <=> $1 AS distance
+FROM policies
+WHERE id = ANY($2)   -- SQL 1차 필터 후보 ID 배열
+ORDER BY distance
+LIMIT 10;
+```
+
+**도입 조건:**
+- 정책 수가 500개 이상으로 늘어날 때
+- SQL 필터 결과가 "너무 많음" (30개+) 문제 생길 때
+- Supabase pgvector 확장 활성화 필요 (`CREATE EXTENSION vector`)
+
+**비용:** 정책 저장 시 임베딩 API 호출 1회 (OpenAI `text-embedding-3-small` 기준 정책 1000개 ≈ $0.02)
+
+---
+
+### 강화 방안 우선순위 요약
+
+| 방안 | 효과 | 구현 비용 | 권장 시점 |
+|---|---|---|---|
+| 11-3. 피드백 루프 | 중 | 낮음 (쿼리 2개) | v1.5 — UserPolicy 쌓이면 바로 |
+| 11-4. 마감 임박 부스팅 | 중 | 낮음 (정렬 키 수정) | v1.5 — D-7 알림과 묶어서 |
+| 11-1. 다중 가중치 스코어링 | 높음 | 중간 (점수 설계 필요) | v2 — 정책 20개+ 쌓인 후 |
+| 11-2. 프로필 폴백 | 중 | 중간 (폴백 로직) | v2 — 프로필 완성도 낮은 사용자 늘면 |
+| 11-5. 벡터 검색 | 높음 | 높음 (인프라 변경) | v3 — 정책 500개+ |

@@ -152,6 +152,21 @@ class ProfileView(APIView):
         return Response(serializer.data)
 
 
+class UserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        nickname = request.data.get('nickname')
+        if not nickname or not str(nickname).strip():
+            return Response(
+                {'error': 'nickname 필드가 필요합니다.', 'code': 'missing_nickname'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.nickname = str(nickname).strip()
+        request.user.save(update_fields=['nickname'])
+        return Response({'nickname': request.user.nickname})
+
+
 class UserPolicyListView(APIView):
     """저장된 정책 목록 조회."""
 
