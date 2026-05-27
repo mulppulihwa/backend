@@ -125,6 +125,7 @@ class KakaoAuthView(APIView):
             'access':            str(refresh.access_token),
             'refresh':           str(refresh),
             'profile_completed': user.profile_completed,
+            'nickname':          user.nickname or nickname,
         })
 
 
@@ -134,7 +135,9 @@ class ProfileView(APIView):
 
     def get(self, request):
         serializer = UserProfileSerializer(request.user.profile)
-        return Response(serializer.data)
+        data = serializer.data
+        data['nickname'] = request.user.nickname or ''
+        return Response(data)
 
     def patch(self, request):
         serializer = UserProfileSerializer(
