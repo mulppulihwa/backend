@@ -1,4 +1,5 @@
 import logging
+import threading
 
 import httpx
 from django.conf import settings
@@ -10,10 +11,26 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.policies.models import ChecklistItem, Policy
 from lib.diagnosis_service import sync_profile_completed
+from lib.parsing.checklist_parser import parse_checklist
+from lib.exceptions import PolicyParseError
 from .models import User, UserPolicy
 from .serializers import UserPolicySerializer, UserProfileSerializer
 
 logger = logging.getLogger(__name__)
+
+def _parse_checklist_bg(policy):
+    try:
+        items = parse_checklist(policy.title, policy.raw_text)
+        if items:
+            ChecklistItem.objects.bulk_create([
+                ChecklistItem(policy=policy, order=item['order'], label=item['label'])
+                for item in items
+            ])
+    except PolicyParseError as e:
+        logger.warning('Background checklist parse failed for policy %s: %s', policy.pk, e)
+    except Exception as e:
+        logger.error('Unexpected error in background checklist parse for policy %s: %s', policy.pk, e)
+
 
 KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token'
 KAKAO_USER_URL  = 'https://kapi.kakao.com/v2/user/me'
@@ -200,6 +217,14 @@ class UserPolicySaveView(APIView):
             profile=request.user.profile,
             policy=policy,
         )
+
+        if created and not ChecklistItem.objects.filter(policy=policy).exists():
+            threading.Thread(
+                target=_parse_checklist_bg,
+                args=(policy,),
+                daemon=True,
+            ).start()
+
         return Response(
             UserPolicySerializer(user_policy).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
