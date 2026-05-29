@@ -11,8 +11,8 @@ from rest_framework.views import APIView
 
 from lib.matching.policy_matcher import match_policies
 from lib.parsing.policy_parser import PolicyParseError, parse_policy
-from .models import Policy
-from .serializers import PolicyCardSerializer, PolicyDetailSerializer
+from .models import ChecklistItem, Policy
+from .serializers import ChecklistItemSerializer, PolicyCardSerializer, PolicyDetailSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,22 @@ class PolicyParseView(APIView):
             )
 
         return Response(result)
+
+
+class PolicyChecklistView(APIView):
+    """정책별 준비물 목록 조회."""
+
+    def get(self, request, policy_id):
+        try:
+            policy = Policy.objects.get(pk=policy_id, is_active=True)
+        except Policy.DoesNotExist:
+            return Response(
+                {'error': '정책을 찾을 수 없습니다.', 'code': 'policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        items = policy.checklist_items.all()
+        return Response(ChecklistItemSerializer(items, many=True).data)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Policy
+from .models import ChecklistItem, Policy
 
 
 class PolicyCardSerializer(serializers.ModelSerializer):
@@ -21,3 +21,9 @@ class PolicyDetailSerializer(serializers.ModelSerializer):
             'apply_start_date', 'apply_end_date', 'apply_url',
             'managing_org', 'source_url', 'source',
         ]
+
+
+class ChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChecklistItem
+        fields = ['id', 'order', 'label']

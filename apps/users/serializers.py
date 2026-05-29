@@ -33,5 +33,5 @@ class UserPolicySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'policy_id', 'policy_title',
             'amount_text', 'benefit_type', 'apply_end_date',
-            'status', 'created_at',
+            'status', 'checked_items', 'created_at',
         ]

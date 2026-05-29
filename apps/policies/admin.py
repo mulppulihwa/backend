@@ -3,11 +3,18 @@ from django.contrib import admin
 from lib.exceptions import PolicyParseError
 from lib.parsing.policy_parser import parse_policy
 
-from .models import Policy
+from .models import ChecklistItem, Policy
+
+
+class ChecklistItemInline(admin.TabularInline):
+    model = ChecklistItem
+    extra = 1
+    fields = ['order', 'label']
 
 
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
+    inlines = [ChecklistItemInline]
     list_display = ['title', 'managing_org', 'apply_end_date', 'is_active', 'source']
     list_filter = ['is_active', 'benefit_type', 'source']
     search_fields = ['title', 'summary', 'managing_org']
