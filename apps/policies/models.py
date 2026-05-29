@@ -57,3 +57,13 @@ class Policy(models.Model):
             GinIndex(fields=['occupation_tags'],  name='idx_policies_occupation_tags'),
             GinIndex(fields=['income_level'],     name='idx_policies_income_level'),
         ]
+
+
+class ChecklistItem(models.Model):
+    policy = models.ForeignKey(Policy, on_delete=models.CASCADE, related_name='checklist_items')
+    order  = models.SmallIntegerField(default=0)
+    label  = models.CharField(max_length=200)
+
+    class Meta:
+        db_table = 'checklist_items'
+        ordering = ['order']

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.policies.models import Policy
+from apps.policies.models import ChecklistItem, Policy
 from lib.diagnosis_service import sync_profile_completed
 from .models import User, UserPolicy
 from .serializers import UserPolicySerializer, UserProfileSerializer
@@ -232,4 +232,44 @@ class UserPolicyStatusView(APIView):
 
         user_policy.status = new_status
         user_policy.save(update_fields=['status'])
+        return Response(UserPolicySerializer(user_policy).data)
+
+
+class UserPolicyChecklistView(APIView):
+    """저장된 정책의 준비물 체크 상태 업데이트."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, policy_id):
+        try:
+            user_policy = UserPolicy.objects.get(
+                profile=request.user.profile,
+                policy_id=policy_id,
+            )
+        except UserPolicy.DoesNotExist:
+            return Response(
+                {'error': '저장된 정책을 찾을 수 없습니다.', 'code': 'user_policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        checked_items = request.data.get('checked_items')
+        if not isinstance(checked_items, list) or not all(isinstance(i, int) for i in checked_items):
+            return Response(
+                {'error': 'checked_items는 정수 배열이어야 합니다.', 'code': 'invalid_checked_items'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        valid_ids = set(
+            ChecklistItem.objects.filter(policy_id=policy_id)
+            .values_list('id', flat=True)
+        )
+        invalid = [i for i in checked_items if i not in valid_ids]
+        if invalid:
+            return Response(
+                {'error': f'존재하지 않는 항목 id: {invalid}', 'code': 'invalid_item_ids'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_policy.checked_items = list(set(checked_items))
+        user_policy.save(update_fields=['checked_items'])
         return Response(UserPolicySerializer(user_policy).data)
