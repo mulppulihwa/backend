@@ -7,6 +7,14 @@ from lib.parsing.policy_parser import parse_policy
 from .models import ChecklistItem, Policy
 
 
+@admin.register(ChecklistItem)
+class ChecklistItemAdmin(admin.ModelAdmin):
+    list_display = ['policy', 'order', 'label']
+    list_filter = ['policy']
+    search_fields = ['label', 'policy__title']
+    ordering = ['policy', 'order']
+
+
 class ChecklistItemInline(admin.TabularInline):
     model = ChecklistItem
     extra = 1
