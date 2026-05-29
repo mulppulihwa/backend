@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from lib.exceptions import PolicyParseError
+from lib.parsing.checklist_parser import parse_checklist
 from lib.parsing.policy_parser import parse_policy
 
 from .models import ChecklistItem, Policy
@@ -20,7 +21,7 @@ class PolicyAdmin(admin.ModelAdmin):
     search_fields = ['title', 'summary', 'managing_org']
     list_editable = ['is_active']
     readonly_fields = ['created_at', 'updated_at']
-    actions = ['parse_from_text']
+    actions = ['parse_from_text', 'parse_checklist_from_text']
 
     fieldsets = [
         ('기본 정보', {'fields': ['title', 'summary', 'description', 'benefit_type', 'amount', 'amount_text', 'source']}),
@@ -43,5 +44,25 @@ class PolicyAdmin(admin.ModelAdmin):
                         setattr(policy, field, val)
                 policy.save()
                 self.message_user(request, f'{policy.title}: 파싱 완료 (confidence={result["confidence"]:.2f})')
+            except PolicyParseError as e:
+                self.message_user(request, f'{policy.title}: {e}', level='error')
+
+    @admin.action(description='AI로 준비물 체크리스트 자동 파싱')
+    def parse_checklist_from_text(self, request, queryset):
+        for policy in queryset:
+            if not policy.raw_text.strip():
+                self.message_user(request, f'{policy.title}: 공고문 텍스트가 없습니다.', level='warning')
+                continue
+            try:
+                items = parse_checklist(policy.title, policy.raw_text)
+                if not items:
+                    self.message_user(request, f'{policy.title}: 준비물을 찾지 못했습니다.', level='warning')
+                    continue
+                ChecklistItem.objects.filter(policy=policy).delete()
+                ChecklistItem.objects.bulk_create([
+                    ChecklistItem(policy=policy, order=item['order'], label=item['label'])
+                    for item in items
+                ])
+                self.message_user(request, f'{policy.title}: 준비물 {len(items)}개 파싱 완료')
             except PolicyParseError as e:
                 self.message_user(request, f'{policy.title}: {e}', level='error')
