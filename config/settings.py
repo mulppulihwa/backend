@@ -70,6 +70,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+_redis_url = os.environ.get('REDIS_URL')
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': _redis_url,
+    } if _redis_url else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+
 _db_url = os.environ['DATABASE_URL'].split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
 DATABASES = {
     'default': dj_database_url.parse(_db_url, conn_max_age=600)
