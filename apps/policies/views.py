@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import DatabaseError
 from django.utils import timezone
@@ -8,6 +9,12 @@ from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+CHECKLIST_CACHE_TTL = 60 * 60 * 24  # 24시간
+
+
+def checklist_cache_key(policy_id: int) -> str:
+    return f'checklist:{policy_id}'
 
 from lib.matching.policy_matcher import match_policies
 from lib.parsing.policy_parser import PolicyParseError, parse_policy
@@ -120,6 +127,11 @@ class PolicyChecklistView(APIView):
     """정책별 준비물 목록 조회."""
 
     def get(self, request, policy_id):
+        key = checklist_cache_key(policy_id)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response(cached)
+
         try:
             policy = Policy.objects.get(pk=policy_id, is_active=True)
         except Policy.DoesNotExist:
@@ -128,8 +140,9 @@ class PolicyChecklistView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        items = policy.checklist_items.all()
-        return Response(ChecklistItemSerializer(items, many=True).data)
+        data = ChecklistItemSerializer(policy.checklist_items.all(), many=True).data
+        cache.set(key, data, CHECKLIST_CACHE_TTL)
+        return Response(data)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

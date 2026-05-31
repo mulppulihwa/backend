@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core.cache import cache
 
 from lib.exceptions import PolicyParseError
 from lib.parsing.checklist_parser import parse_checklist
@@ -71,6 +72,7 @@ class PolicyAdmin(admin.ModelAdmin):
                     ChecklistItem(policy=policy, order=item['order'], label=item['label'])
                     for item in items
                 ])
+                cache.delete(f'checklist:{policy.pk}')
                 self.message_user(request, f'{policy.title}: 준비물 {len(items)}개 파싱 완료')
             except PolicyParseError as e:
                 self.message_user(request, f'{policy.title}: {e}', level='error')

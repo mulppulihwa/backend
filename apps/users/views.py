@@ -2,6 +2,7 @@ import logging
 import threading
 
 import httpx
+from django.core.cache import cache
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -26,6 +27,7 @@ def _parse_checklist_bg(policy):
                 ChecklistItem(policy=policy, order=item['order'], label=item['label'])
                 for item in items
             ])
+            cache.delete(f'checklist:{policy.pk}')
     except PolicyParseError as e:
         logger.warning('Background checklist parse failed for policy %s: %s', policy.pk, e)
     except Exception as e:
