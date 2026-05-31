@@ -93,6 +93,11 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
                 'title':        title,
                 'summary':      item.get('서비스목적요약', ''),
                 'description':  item.get('지원내용', ''),
+                'raw_text':     '\n'.join(filter(None, [
+                                    item.get('지원대상', ''),
+                                    item.get('선정기준', ''),
+                                    item.get('지원내용', ''),
+                                ])),
                 'managing_org': item.get('소관기관명', ''),
                 'apply_url':    item.get('상세조회URL', ''),
                 'benefit_type': _map_benefit_type(item.get('지원유형', '')),
