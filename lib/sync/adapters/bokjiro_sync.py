@@ -2,14 +2,16 @@ import logging
 
 import httpx
 from django.conf import settings
+from django.core.cache import cache
 
-from apps.policies.models import Policy
+from apps.policies.models import ChecklistItem, Policy
 from lib.exceptions import PolicyParseError
 from lib.parsing.policy_parser import parse_policy
 
 logger = logging.getLogger(__name__)
 
 BOKJIRO_URL = 'https://api.odcloud.kr/api/gov24/v3/serviceList'
+BOKJIRO_DETAIL_URL = 'https://api.odcloud.kr/api/gov24/v3/serviceDetail'
 CONFIDENCE_THRESHOLD = 0.7
 
 BENEFIT_TYPE_MAP = {
@@ -29,6 +31,37 @@ def _map_benefit_type(raw: str) -> str:
         if key in raw:
             return val
     return '기타'
+
+
+def _fetch_checklist_labels(service_id: str, api_key: str) -> list[str]:
+    """serviceDetail API에서 구비서류를 파싱해 체크리스트 항목 목록을 반환한다."""
+    try:
+        res = httpx.get(
+            BOKJIRO_DETAIL_URL,
+            params={'serviceId': service_id, 'serviceKey': api_key},
+            timeout=30,
+        )
+        res.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning('serviceDetail 요청 실패 (%s): %s', service_id, e)
+        return []
+
+    data = res.json().get('data', [])
+    if not data:
+        return []
+
+    detail = data[0]
+    labels = []
+    for field in ('구비서류', '본인확인필요구비서류'):
+        text = (detail.get(field) or '').strip()
+        if not text or text == '해당없음':
+            continue
+        for line in text.splitlines():
+            line = line.strip().lstrip('-').strip()
+            if line:
+                labels.append(line)
+
+    return labels
 
 
 def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
@@ -72,7 +105,6 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
             if not title or not external_id:
                 continue
 
-            # 수동입력·귀농센터 소스와 제목 충돌 시 스킵
             if Policy.objects.filter(title=title).exclude(source='복지로').exists():
                 skipped += 1
                 continue
@@ -111,11 +143,22 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
                     if parsed.get(field) is not None:
                         defaults[field] = parsed[field]
 
-            Policy.objects.update_or_create(
+            policy_obj, created = Policy.objects.update_or_create(
                 external_id=external_id,
                 source='복지로',
                 defaults=defaults,
             )
+
+            if created or not ChecklistItem.objects.filter(policy=policy_obj).exists():
+                labels = _fetch_checklist_labels(external_id, api_key)
+                if labels:
+                    ChecklistItem.objects.filter(policy=policy_obj).delete()
+                    ChecklistItem.objects.bulk_create([
+                        ChecklistItem(policy=policy_obj, order=i, label=label)
+                        for i, label in enumerate(labels)
+                    ])
+                    cache.delete(f'checklist:{policy_obj.pk}')
+
             saved += 1
             processed += 1
 
