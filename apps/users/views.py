@@ -185,6 +185,10 @@ class UserView(APIView):
         request.user.save(update_fields=['nickname'])
         return Response({'nickname': request.user.nickname})
 
+    def delete(self, request):
+        request.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class UserPolicyListView(APIView):
     """저장된 정책 목록 조회."""
