@@ -59,7 +59,6 @@ class UserProfile(models.Model):
     # 농업 자격
     is_farm_registered   = models.BooleanField(null=True)
     farm_registered_date = models.DateField(null=True, blank=True)
-    education_hours      = models.SmallIntegerField(default=0)
 
     # 복지로 API 매칭용
     is_disabled = models.BooleanField(null=True)  # 장애 여부

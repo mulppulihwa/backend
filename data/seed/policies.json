@@ -19,12 +19,7 @@
       "move_status": [],
       "income_level": [],
       "disability_required": null,
-      "condition_tree": {
-        "op": "AND",
-        "children": [
-          {"field": "education_hours", "op": "gte", "value": 8}
-        ]
-      },
+      "condition_tree": null,
       "apply_start_date": null,
       "apply_end_date": "2026-12-31",
       "apply_url": "",
@@ -326,12 +321,7 @@
       "move_status": [],
       "income_level": [],
       "disability_required": null,
-      "condition_tree": {
-        "op": "AND",
-        "children": [
-          {"field": "education_hours", "op": "gte", "value": 8}
-        ]
-      },
+      "condition_tree": null,
       "apply_start_date": null,
       "apply_end_date": "2026-12-31",
       "apply_url": "",
@@ -700,6 +690,24 @@
       "raw_text": "",
       "created_at": "2026-05-27T00:00:00Z",
       "updated_at": "2026-05-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "policies.checklistitem",
+    "pk": 1,
+    "fields": {
+      "policy": 1,
+      "order": 1,
+      "label": "농업 관련 교육 8시간 이상 이수 확인서"
+    }
+  },
+  {
+    "model": "policies.checklistitem",
+    "pk": 2,
+    "fields": {
+      "policy": 10,
+      "order": 1,
+      "label": "농업 관련 교육 8시간 이상 이수 확인서"
     }
   }
 ]

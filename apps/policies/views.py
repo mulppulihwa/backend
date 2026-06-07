@@ -158,7 +158,6 @@ def _build_profile_dict(profile) -> dict:
         'marital_status':      profile.marital_status,
         'is_farm_registered':  profile.is_farm_registered,
         'farm_registered_date': str(profile.farm_registered_date) if profile.farm_registered_date else None,
-        'education_hours':     profile.education_hours,
         'non_farm_income':     profile.non_farm_income,
         'years_since_move':    profile.years_since_move,
         'move_in_date':        str(profile.move_in_date) if profile.move_in_date else None,
