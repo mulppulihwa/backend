@@ -91,6 +91,11 @@ def _run_matching(
             disability_required=is_disabled
         )
 
+    # 읍/면(이미 농촌 거주) 출신은 도시→농촌 이주를 전제로 하는 귀농 정책 대상이 아님.
+    # 반대로 동 출신은 귀농 여부가 불확실하므로 필터링하지 않고 노출 후 사용자가 직접 확인하게 둔다.
+    if user_profile.get('prev_residence_type') == '읍면':
+        qs = qs.exclude(occupation_tags__contains=['귀농'])
+
     # condition_tree 2차 평가 — evaluate_tree는 내부적으로 예외를 잡아 False 반환
     matched = [p for p in qs if evaluate_tree(p.condition_tree, user_profile)]
 
