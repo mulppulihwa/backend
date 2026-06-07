@@ -153,6 +153,7 @@ def _build_profile_dict(profile) -> dict:
         'age':                 profile.age,
         'gender':              profile.gender,
         'occupation_tags':     profile.occupation_tags,
+        'prev_residence_type': profile.prev_residence_type,
         'household_type':      profile.household_type,
         'income_level':        profile.income_level,
         'marital_status':      profile.marital_status,
