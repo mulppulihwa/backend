@@ -709,5 +709,23 @@
       "order": 1,
       "label": "농업 관련 교육 8시간 이상 이수 확인서"
     }
+  },
+  {
+    "model": "policies.checklistitem",
+    "pk": 90003,
+    "fields": {
+      "policy": 1,
+      "order": 8,
+      "label": "농업 관련 교육 100시간 이상 이수 확인 (미만 시 등급 불리)"
+    }
+  },
+  {
+    "model": "policies.checklistitem",
+    "pk": 90004,
+    "fields": {
+      "policy": 10,
+      "order": 2,
+      "label": "농업 관련 교육 100시간 이상 이수 확인 (미만 시 등급 불리)"
+    }
   }
 ]
