@@ -694,7 +694,7 @@
   },
   {
     "model": "policies.checklistitem",
-    "pk": 1,
+    "pk": 90001,
     "fields": {
       "policy": 1,
       "order": 1,
@@ -703,7 +703,7 @@
   },
   {
     "model": "policies.checklistitem",
-    "pk": 2,
+    "pk": 90002,
     "fields": {
       "policy": 10,
       "order": 1,
