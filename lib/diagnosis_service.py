@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 온보딩 완료 판단 기준 필드
-REQUIRED_FIELDS = ('region_code', 'birth_date', 'occupation_tags')
+REQUIRED_FIELDS = ('birth_date', 'occupation_tags')
 
 
 def is_profile_complete(profile) -> bool:
