@@ -7,7 +7,6 @@ GENDER_CHOICES    = [('남', '남'), ('여', '여')]
 MARITAL_CHOICES   = [('미혼', '미혼'), ('기혼', '기혼')]
 HOUSEHOLD_CHOICES = [('독거', '독거'), ('부부', '부부'), ('기타', '기타')]
 INCOME_CHOICES    = [('기초수급', '기초수급'), ('차상위', '차상위'), ('일반', '일반')]
-PREV_RESIDENCE_CHOICES = [('동', '동'), ('읍면', '읍/면')]
 
 
 class UserManager(BaseUserManager):
@@ -50,7 +49,7 @@ class UserProfile(models.Model):
     # 귀농/귀촌 상태
     occupation_tags     = ArrayField(models.TextField(), default=list, blank=True)
     move_in_date        = models.DateField(null=True, blank=True)
-    prev_residence_type = models.CharField(max_length=10, choices=PREV_RESIDENCE_CHOICES, blank=True)
+    prev_residence_is_rural = models.BooleanField(null=True)  # 이전 거주지가 농촌(읍/면)이었는지 여부
 
     # 경제 상태
     household_type  = models.CharField(max_length=10, choices=HOUSEHOLD_CHOICES, blank=True)
