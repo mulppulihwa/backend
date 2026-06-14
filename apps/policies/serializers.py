@@ -20,6 +20,7 @@ class PolicyDetailSerializer(serializers.ModelSerializer):
             'benefit_type', 'amount', 'amount_text',
             'apply_start_date', 'apply_end_date', 'apply_url',
             'managing_org', 'source_url', 'source',
+            'published_at', 'updated_at',
         ]
 
 

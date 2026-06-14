@@ -43,6 +43,7 @@ class Policy(models.Model):
     apply_url        = models.URLField(blank=True)
     managing_org     = models.CharField(max_length=100, blank=True)
     source_url       = models.URLField(blank=True)
+    published_at     = models.DateField(null=True, blank=True)  # 원문 공고 게시일
     external_id      = models.CharField(max_length=100, blank=True)
     is_active        = models.BooleanField(default=True)
     created_at       = models.DateTimeField(auto_now_add=True)
