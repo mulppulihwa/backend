@@ -1,12 +1,10 @@
 import logging
-from datetime import date
 
 from django.db import DatabaseError
 from django.utils import timezone
 
 from apps.policies.models import Policy
 from .condition_tree import evaluate_tree
-from .region_hierarchy import get_ancestor_codes
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +16,12 @@ def match_policies(user_profile: dict) -> dict:
 
     DB 오류 등 예외 발생 시 빈 결과 대신 fallback 정책을 반환한다.
     """
-    region_code = user_profile.get('region_code', '')
-    age         = user_profile.get('age') or 0
-    occ_tags    = user_profile.get('occupation_tags') or []
-    income      = user_profile.get('income_level', '')
+    age      = user_profile.get('age') or 0
+    occ_tags = user_profile.get('occupation_tags') or []
+    income   = user_profile.get('income_level', '')
 
     try:
-        ancestor_codes = get_ancestor_codes(region_code)
-    except Exception as e:
-        logger.error('get_ancestor_codes failed for %s: %s', region_code, e)
-        ancestor_codes = [region_code] if region_code else []
-
-    try:
-        matched = _run_matching(age, occ_tags, income, ancestor_codes, user_profile)
+        matched = _run_matching(age, occ_tags, income, user_profile)
     except DatabaseError as e:
         logger.error('DB error during policy matching: %s', e)
         return {'policies': [], 'fallback': True, 'error': 'DB 오류로 매칭에 실패했습니다.'}
@@ -55,7 +46,6 @@ def _run_matching(
     age: int,
     occ_tags: list[str],
     income: str,
-    ancestor_codes: list[str],
     user_profile: dict,
 ) -> list[Policy]:
     qs = Policy.objects.filter(
@@ -63,13 +53,6 @@ def _run_matching(
         min_age__lte=age,
         max_age__gte=age,
     )
-
-    if ancestor_codes:
-        # 전국 정책(region_codes=[]) 또는 지역 겹치는 정책
-        # __len=0은 PostgreSQL에서 array_length()가 NULL 반환해 매칭 실패 → __exact=[] 사용
-        qs = qs.filter(region_codes__exact=[]) | qs.filter(
-            region_codes__overlap=ancestor_codes
-        )
 
     if occ_tags:
         # occupation_tags 없는 정책(전체 대상)도 포함
