@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 import anthropic
@@ -11,6 +12,8 @@ logger = logging.getLogger(__name__)
 client = anthropic.Anthropic()
 
 MAX_TEXT_LENGTH = 20_000  # Claude context 낭비 방지
+
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
 class ParsedPolicy(BaseModel):
@@ -34,6 +37,13 @@ class ParsedPolicy(BaseModel):
     def validate_income(cls, v):
         allowed = {'기초수급', '차상위', '일반'}
         return [x for x in v if x in allowed]
+
+    @field_validator('apply_end_date')
+    def validate_apply_end_date(cls, v):
+        # '상시', '예산소진시까지' 등 비확정 표현은 신청 마감일로 보지 않고 null 처리
+        if v and not DATE_RE.match(v):
+            return None
+        return v
 
     @field_validator('confidence')
     def validate_confidence(cls, v):

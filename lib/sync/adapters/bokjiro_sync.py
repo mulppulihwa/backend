@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 import httpx
 from django.conf import settings
@@ -142,6 +143,8 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
                               'income_level', 'amount_text', 'condition_tree'):
                     if parsed.get(field) is not None:
                         defaults[field] = parsed[field]
+                if parsed.get('apply_end_date'):
+                    defaults['apply_end_date'] = date.fromisoformat(parsed['apply_end_date'])
 
             policy_obj, created = Policy.objects.update_or_create(
                 external_id=external_id,

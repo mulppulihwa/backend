@@ -61,6 +61,21 @@ class TestSuccessPath:
         result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
         assert result['confidence'] <= 1.0
 
+    @patch('lib.parsing.policy_parser.client')
+    def test_apply_end_date_valid_format_kept(self, mock_client):
+        data = {**MINIMAL_VALID, 'apply_end_date': '2026-09-30'}
+        mock_client.messages.create.return_value = _make_tool_use_response(data)
+        result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
+        assert result['parsed']['apply_end_date'] == '2026-09-30'
+
+    @patch('lib.parsing.policy_parser.client')
+    def test_apply_end_date_non_date_text_nulled(self, mock_client):
+        # '상시', '예산소진시까지' 등 비확정 표현은 null로 정규화
+        data = {**MINIMAL_VALID, 'apply_end_date': '예산소진시까지'}
+        mock_client.messages.create.return_value = _make_tool_use_response(data)
+        result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
+        assert result['parsed']['apply_end_date'] is None
+
 
 class TestApiErrors:
     @patch('lib.parsing.policy_parser.client')
