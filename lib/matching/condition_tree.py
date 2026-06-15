@@ -46,8 +46,10 @@ def _evaluate(node: dict, profile: dict) -> bool:
             return _evaluate_leaf(node, profile)
 
         case _:
-            logger.warning('Unknown node type: %s', node_type)
-            return False
+            # AI가 생성한 condition_tree가 기대 스키마(type/children)를 따르지 않는 경우,
+            # 정책을 매칭에서 제외하지 않도록 통과(True) 처리한다.
+            logger.warning('Unknown node type: %s — 조건 평가 불가, 통과 처리', node_type)
+            return True
 
 
 def _evaluate_leaf(node: dict, profile: dict) -> bool:
