@@ -1,74 +1,52 @@
 # 시스템 아키텍처
 
 ```mermaid
-graph TB
-    subgraph Client["클라이언트"]
-        FE["프론트엔드 (Next.js/React)<br/>socialventure-frontend"]
+graph LR
+    subgraph FE["프론트엔드"]
+        FE1["React + Vite<br/>TypeScript"]
     end
 
-    subgraph External["외부 서비스"]
-        KakaoLogin["카카오 로그인 (OAuth)"]
-        KakaoMap["카카오 지도 SDK<br/>(JS, 클라이언트 Geocoder)"]
-        DaumPostcode["다음 우편번호(Postcode)<br/>주소 검색"]
-        KakaoLocal["카카오 로컬 API<br/>(주소 검색 / 서버 Geocoding)"]
-        Bokjiro["복지로 Open API"]
-        Greendaero["그린대로(귀농센터)<br/>크롤링 대상"]
-        Anthropic["Anthropic Claude API<br/>(정책/준비물 파싱)"]
+    subgraph BE["백엔드"]
+        BE1["Python · Django<br/>Django REST Framework"]
+        BE2["JWT 로그인"]
     end
 
-    subgraph Backend["백엔드 (Django/DRF, Railway)"]
-        direction TB
-
-        subgraph Apps["apps/"]
-            UsersApp["users<br/>인증·프로필·내 정책"]
-            PoliciesApp["policies<br/>정책 매칭·조회"]
-            PlacesApp["places<br/>사용처 CRUD"]
-            RegionsApp["regions<br/>지역 정보"]
-        end
-
-        subgraph Lib["lib/"]
-            Matcher["matching/policy_matcher<br/>조건 매칭·정렬"]
-            Parser["parsing/<br/>policy_parser, checklist_parser"]
-            SyncAdapters["sync/adapters<br/>bokjiro_sync, greendaero_sync"]
-            Geocoding["services/geocoding<br/>주소→좌표 변환"]
-        end
-
-        subgraph Commands["management commands"]
-            SyncCmd["sync_bokjiro / sync_greendaero<br/>prune_policy_scope<br/>parse_checklists / backfill_checklists"]
-        end
+    subgraph DBG["데이터베이스"]
+        DB1["PostgreSQL<br/>(Supabase)"]
+        DB2["Redis<br/>(캐시)"]
     end
 
-    subgraph DB["DB (Supabase Postgres)"]
-        Tables["users, policies, checklist_items,<br/>local_places, regions ..."]
+    subgraph EXTAPI["외부 API"]
+        E1["카카오<br/>로그인 · 지도 · 주소 검색"]
+        E2["복지로 · 그린대로<br/>정책 정보"]
+        E3["Anthropic Claude<br/>AI 정책 분석"]
     end
 
-    %% 클라이언트 <-> 외부 서비스 (프론트 직접 연동)
-    FE -- "로그인 redirect" --> KakaoLogin
-    FE -- "지도 표시 / 클라이언트 geocoding" --> KakaoMap
-    FE -- "주소 검색 팝업" --> DaumPostcode
+    subgraph DEPLOY["배포"]
+        D1["Netlify<br/>(프론트엔드)"]
+        D2["Railway<br/>(백엔드 · Gunicorn)"]
+    end
 
-    %% 클라이언트 <-> 백엔드
-    FE -- "REST API<br/>(/api/auth, /api/profile,<br/>/api/policies, /api/places, /api/regions)" --> Apps
-    KakaoLogin -. "인가 코드" .-> UsersApp
+    FE <-->|화면에 필요한 정보를 요청하고 응답받음| BE
+    FE <-->|카카오 로그인 · 지도 · 주소 검색을 화면에서 직접 이용| EXTAPI
+    BE <-->|회원 · 정책 · 사용처 정보를 저장하고 불러옴| DBG
+    BE <-->|정책 정보를 가져오고 AI에게 분석을 요청함| EXTAPI
+    D1 -. 여기서 실행됨 .- FE
+    D2 -. 여기서 실행됨 .- BE
 
-    %% 백엔드 내부
-    PoliciesApp --> Matcher
-    PlacesApp --> Geocoding
-    Commands --> SyncAdapters
-    Commands --> Parser
-
-    %% 백엔드 <-> DB
-    Apps --> Tables
-    Lib --> Tables
-
-    %% 백엔드 <-> 외부 서비스
-    Geocoding -- "서버 geocoding (폴백)" --> KakaoLocal
-    SyncAdapters -- "정책 수집" --> Bokjiro
-    SyncAdapters -- "정책 수집" --> Greendaero
-    Parser -- "구조화 파싱" --> Anthropic
+    style FE fill:#EDE7FF,stroke:#9B8AFB,stroke-width:2px
+    style BE fill:#DCEEFF,stroke:#6FA8DC,stroke-width:2px
+    style DBG fill:#DFF5E1,stroke:#6FCF7E,stroke-width:2px
+    style EXTAPI fill:#FFEFD5,stroke:#F2A65A,stroke-width:2px
+    style DEPLOY fill:#F0F0F0,stroke:#AAAAAA,stroke-width:2px
 ```
 
-## 구성 요약
+- **프론트엔드**: React + Vite(TypeScript), React Router — Netlify에 배포
+- **백엔드**: Python + Django(Django REST Framework), JWT 로그인 — Railway에 배포(Gunicorn)
+- **데이터베이스**: PostgreSQL(Supabase), Redis(캐시)
+- **외부 API**: 카카오(로그인·지도·주소 검색), 복지로·그린대로(정책 정보), Anthropic Claude(AI 정책 분석)
+
+## 상세 구성 (개발자용)
 
 - **프론트엔드**: 로그인(카카오 OAuth), 지도(카카오맵 SDK)·주소검색(다음 Postcode)은
   프론트에서 직접 외부 SDK를 호출하고, 그 외 데이터는 백엔드 REST API를 통해 가져온다.
