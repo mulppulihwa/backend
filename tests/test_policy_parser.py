@@ -76,6 +76,14 @@ class TestSuccessPath:
         result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
         assert result['parsed']['apply_end_date'] is None
 
+    @patch('lib.parsing.policy_parser.client')
+    def test_apply_end_date_far_future_nulled(self, mock_client):
+        # '9999-12-31', '2099-12-31' 같은 먼 미래 placeholder도 null로 정규화
+        data = {**MINIMAL_VALID, 'apply_end_date': '2099-12-31'}
+        mock_client.messages.create.return_value = _make_tool_use_response(data)
+        result = parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')
+        assert result['parsed']['apply_end_date'] is None
+
 
 class TestApiErrors:
     @patch('lib.parsing.policy_parser.client')

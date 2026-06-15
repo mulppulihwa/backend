@@ -18,6 +18,14 @@
   `YYYY-MM-DD` 형식이 아닌 값(예: "예산소진시까지")은 자동으로 `null`로
   정규화하므로, sync 어댑터(`bokjiro_sync`, `greendaero_sync`)는 검증된 값만
   받는다.
+
+### 먼 미래 placeholder 방지
+
+`apply_end_date`의 연도가 `MAX_VALID_END_YEAR`(2030) 이상이면 — AI가 "상시"를
+"9999-12-31"/"2099-12-31" 등으로 잘못 변환한 경우 — `null`로 정규화한다
+(`lib/parsing/policy_parser.py`의 `validate_apply_end_date`). 2026-06-16:
+귀농센터 정책 1건(`2099-12-31`)을 마이그레이션
+`0008_clear_far_future_deadlines`로 정리.
 - **옥천군청(수동입력)** — 등록·수정 시 옥천군청 등 원출처 페이지에 명시된
   마감일이 있을 때만 입력한다. 명시된 마감일이 없으면 `apply_end_date`를
   비워(`null`) 둔다. (2026-06-16: 기존 20건에 일괄 입력돼 있던 "2026-12-31"
