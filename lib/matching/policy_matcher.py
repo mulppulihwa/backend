@@ -8,7 +8,7 @@ from .condition_tree import evaluate_tree
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_LIMIT = 10
+MATCH_LIMIT = 5
 
 
 def match_policies(user_profile: dict) -> dict:
@@ -33,11 +33,13 @@ def match_policies(user_profile: dict) -> dict:
     if fallback:
         try:
             matched = list(
-                Policy.objects.filter(is_active=True).order_by('-created_at')[:FALLBACK_LIMIT]
+                Policy.objects.filter(is_active=True).order_by('-created_at')[:MATCH_LIMIT]
             )
         except DatabaseError as e:
             logger.error('DB error fetching fallback policies: %s', e)
             matched = []
+    else:
+        matched = matched[:MATCH_LIMIT]
 
     return {'policies': matched, 'fallback': fallback}
 
