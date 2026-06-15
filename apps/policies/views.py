@@ -149,11 +149,10 @@ class PolicyChecklistView(APIView):
 
 def _build_profile_dict(profile) -> dict:
     return {
-        'region_code':         profile.region_code,
         'age':                 profile.age,
         'gender':              profile.gender,
         'occupation_tags':     profile.occupation_tags,
-        'prev_residence_type': profile.prev_residence_type,
+        'prev_residence_is_rural': profile.prev_residence_is_rural,
         'household_type':      profile.household_type,
         'income_level':        profile.income_level,
         'marital_status':      profile.marital_status,
@@ -172,8 +171,6 @@ def _build_match_reason(policy: Policy, profile: dict) -> str:
         overlap = set(policy.occupation_tags) & set(profile['occupation_tags'])
         if overlap:
             parts.append(', '.join(overlap))
-    if profile.get('region_code') and policy.region_codes:
-        parts.append('지역 조건 충족')
     if policy.min_age > 0 or policy.max_age < 130:
         age = profile.get('age')
         if age is not None:

@@ -35,7 +35,7 @@ class PolicyAdmin(admin.ModelAdmin):
     fieldsets = [
         ('기본 정보', {'fields': ['title', 'summary', 'description', 'benefit_type', 'amount', 'amount_text', 'source']}),
         ('자격 조건', {'fields': ['min_age', 'max_age', 'gender', 'region_codes', 'occupation_tags', 'household_type', 'move_status', 'income_level', 'disability_required', 'condition_tree']}),
-        ('신청 정보', {'fields': ['apply_start_date', 'apply_end_date', 'apply_url', 'managing_org', 'source_url', 'external_id', 'is_active']}),
+        ('신청 정보', {'fields': ['apply_start_date', 'apply_end_date', 'apply_url', 'managing_org', 'source_url', 'published_at', 'external_id', 'is_active']}),
         ('AI 파싱', {'fields': ['raw_text'], 'description': '공고문 원문을 붙여넣고 "AI로 공고문 자동 파싱" 액션을 실행하세요.'}),
         ('메타', {'fields': ['created_at', 'updated_at'], 'classes': ['collapse']}),
     ]

@@ -136,9 +136,15 @@ class TestNot:
 
 
 class TestUnknownType:
-    def test_unknown_type_returns_false(self):
+    def test_unknown_type_returns_true(self):
+        # AI가 기대 스키마(type/children)를 따르지 않는 condition_tree를 생성한 경우,
+        # 정책을 매칭에서 제외하지 않도록 통과(True) 처리한다.
         node = {'type': 'INVALID_TYPE', 'children': []}
-        assert evaluate_tree(node, PROFILE) is False
+        assert evaluate_tree(node, PROFILE) is True
+
+    def test_missing_type_returns_true(self):
+        node = {'AND': [{'label': '연령 조건', 'description': '18세 이상'}]}
+        assert evaluate_tree(node, PROFILE) is True
 
 
 class TestNestedTree:

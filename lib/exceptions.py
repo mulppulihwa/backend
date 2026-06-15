@@ -14,7 +14,7 @@ class PolicyParseError(Exception):
 
 
 class MatchingError(Exception):
-    """정책 매칭 파이프라인 오류 (region_code 누락 등)."""
+    """정책 매칭 파이프라인 오류."""
 
 
 # ── DRF API 예외 (views에서 raise → DRF가 자동으로 Response 변환) ──────────

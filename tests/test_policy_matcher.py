@@ -21,7 +21,6 @@ def _make_policy(
 
 
 PROFILE = {
-    'region_code': '43720',
     'age': 70,
     'occupation_tags': ['귀농'],
     'income_level': '기초수급',
@@ -30,29 +29,17 @@ PROFILE = {
 
 
 class TestMatchPoliciesErrorHandling:
-    @patch('lib.matching.policy_matcher.get_ancestor_codes', side_effect=Exception('DB down'))
-    @patch('lib.matching.policy_matcher._run_matching')
-    def test_ancestor_codes_failure_uses_empty(self, mock_run, mock_get):
-        mock_run.return_value = []
-        with patch('lib.matching.policy_matcher.Policy') as mock_policy:
-            mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = []
-            result = match_policies(PROFILE)
-        # ancestor_codes 실패해도 매칭 자체는 실행됨
-        assert 'policies' in result
-
-    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
     @patch('lib.matching.policy_matcher._run_matching', side_effect=Exception('DB error'))
-    def test_db_error_returns_fallback(self, mock_run, mock_get):
+    def test_db_error_returns_fallback(self, mock_run):
         from django.db import DatabaseError
         mock_run.side_effect = DatabaseError('DB error')
         result = match_policies(PROFILE)
         assert result['fallback'] is True
         assert 'error' in result
 
-    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
     @patch('lib.matching.policy_matcher._run_matching', return_value=[])
     @patch('lib.matching.policy_matcher.Policy')
-    def test_empty_match_returns_fallback_policies(self, mock_policy, mock_run, mock_get):
+    def test_empty_match_returns_fallback_policies(self, mock_policy, mock_run):
         fallback = [_make_policy()]
         mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = fallback
         result = match_policies(PROFILE)
@@ -61,9 +48,8 @@ class TestMatchPoliciesErrorHandling:
 
 
 class TestConditionTreeEvaluation:
-    @patch('lib.matching.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
     @patch('lib.matching.policy_matcher._run_matching')
-    def test_policy_with_no_condition_tree_passes(self, mock_run, mock_get):
+    def test_policy_with_no_condition_tree_passes(self, mock_run):
         p = _make_policy(condition_tree=None)
         mock_run.return_value = [p]
         result = match_policies(PROFILE)
