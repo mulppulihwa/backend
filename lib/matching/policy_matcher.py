@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 MATCH_LIMIT = 5
 
-# 옥천 큐레이션(수동입력) > 귀농센터 > 복지로 순으로 노출
-SOURCE_PRIORITY = {'수동입력': 0, '귀농센터': 1, '복지로': 2}
+# 옥천 큐레이션(옥천군청/수동입력) > 귀농센터 > 복지로 순으로 노출
+SOURCE_PRIORITY = {'옥천군청': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
 
 
 def match_policies(user_profile: dict) -> dict:
@@ -87,7 +87,7 @@ def _run_matching(
     # condition_tree 2차 평가 — evaluate_tree는 내부적으로 예외를 잡아 False 반환
     matched = [p for p in qs if evaluate_tree(p.condition_tree, user_profile)]
 
-    # 정렬: 출처 우선순위(수동입력 > 귀농센터 > 복지로) → 그 안에서 마감 임박 순
+    # 정렬: 출처 우선순위(옥천군청/수동입력 > 귀농센터 > 복지로) → 그 안에서 마감 임박 순
     today = timezone.now().date()
 
     def sort_key(p: Policy):

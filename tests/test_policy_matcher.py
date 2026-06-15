@@ -22,7 +22,7 @@ def _make_policy(
     return p
 
 
-SOURCE_PRIORITY = {'수동입력': 0, '귀농센터': 1, '복지로': 2}
+SOURCE_PRIORITY = {'옥천군청': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
 
 
 def _sort_key(p, today):
@@ -84,13 +84,13 @@ class TestConditionTreeEvaluation:
     def test_sort_by_source_priority(self):
         from datetime import date
         today = date(2026, 5, 13)
-        # 복지로 정책이 마감 임박이어도, 수동입력/귀농센터 정책보다 뒤로
+        # 복지로 정책이 마감 임박이어도, 옥천군청/귀농센터 정책보다 뒤로
         p_bokjiro  = _make_policy(apply_end_date=date(2026, 5, 14), source='복지로')
         p_gwiro    = _make_policy(apply_end_date=None, source='귀농센터')
-        p_manual   = _make_policy(apply_end_date=None, source='수동입력')
+        p_okcheon  = _make_policy(apply_end_date=None, source='옥천군청')
 
-        policies = [p_bokjiro, p_gwiro, p_manual]
+        policies = [p_bokjiro, p_gwiro, p_okcheon]
         policies.sort(key=lambda p: _sort_key(p, today))
-        assert policies[0] == p_manual
+        assert policies[0] == p_okcheon
         assert policies[1] == p_gwiro
         assert policies[2] == p_bokjiro
