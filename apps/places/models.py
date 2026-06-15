@@ -14,6 +14,7 @@ class LocalPlace(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORIES)
     address = models.TextField()
     phone = models.CharField(max_length=20, blank=True)
+    business_hours = models.CharField(max_length=100, blank=True)
     lat = models.DecimalField(max_digits=10, decimal_places=7, null=True)
     lng = models.DecimalField(max_digits=10, decimal_places=7, null=True)
     subsidy_tags = ArrayField(models.TextField(), default=list)
@@ -22,6 +23,10 @@ class LocalPlace(models.Model):
     price_notes = models.TextField(blank=True)
     last_verified = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        'users.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='registered_places',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
