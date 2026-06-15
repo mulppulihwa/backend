@@ -123,6 +123,21 @@ class PolicyParseView(APIView):
         return Response(result)
 
 
+class PolicyDetailView(APIView):
+    """정책 상세 조회."""
+
+    def get(self, request, policy_id):
+        try:
+            policy = Policy.objects.get(pk=policy_id, is_active=True)
+        except Policy.DoesNotExist:
+            return Response(
+                {'error': '정책을 찾을 수 없습니다.', 'code': 'policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(PolicyDetailSerializer(policy).data)
+
+
 class PolicyChecklistView(APIView):
     """정책별 준비물 목록 조회."""
 
