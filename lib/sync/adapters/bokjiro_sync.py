@@ -166,7 +166,10 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
                         ChecklistItem(policy=policy_obj, order=i, label=label)
                         for i, label in enumerate(detail['checklist_labels'])
                     ])
-                    cache.delete(f'checklist:{policy_obj.pk}')
+                    try:
+                        cache.delete(f'checklist:{policy_obj.pk}')
+                    except Exception as e:
+                        logger.warning('캐시 삭제 실패 (무시): %s', e)
                 update_fields = {}
                 if detail['how_to_apply']:
                     update_fields['how_to_apply'] = detail['how_to_apply']
