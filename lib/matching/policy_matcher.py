@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 MATCH_LIMIT = 5
 
 # 옥천 큐레이션(옥천군청/수동입력) > 귀농센터 > 복지로 순으로 노출
-SOURCE_PRIORITY = {'옥천군청': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
+SOURCE_PRIORITY = {'옥천군청': 0, '옥천군 농업기술센터': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
+
+# 매칭 결과에 노출할 출처 — 옥천군 직접 큐레이션 정책만 대상
+LOCAL_SOURCES = [k for k, v in SOURCE_PRIORITY.items() if v == 0]
 
 
 def match_policies(user_profile: dict) -> dict:
@@ -36,7 +39,8 @@ def match_policies(user_profile: dict) -> dict:
     if fallback:
         try:
             matched = list(
-                Policy.objects.filter(is_active=True).order_by('-created_at')[:MATCH_LIMIT]
+                Policy.objects.filter(is_active=True, source__in=LOCAL_SOURCES)
+                .order_by('-created_at')[:MATCH_LIMIT]
             )
         except DatabaseError as e:
             logger.error('DB error fetching fallback policies: %s', e)
@@ -55,6 +59,7 @@ def _run_matching(
 ) -> list[Policy]:
     qs = Policy.objects.filter(
         is_active=True,
+        source__in=LOCAL_SOURCES,
         min_age__lte=age,
         max_age__gte=age,
     )
