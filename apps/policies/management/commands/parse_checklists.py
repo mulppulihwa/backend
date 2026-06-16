@@ -16,6 +16,10 @@ class Command(BaseCommand):
             help='특정 정책 ID만 처리',
         )
         parser.add_argument(
+            '--source', nargs='+',
+            help='처리할 출처 (예: --source 귀농센터 수동입력 옥천군청)',
+        )
+        parser.add_argument(
             '--force', action='store_true',
             help='이미 체크리스트가 있는 정책도 재파싱',
         )
@@ -25,6 +29,9 @@ class Command(BaseCommand):
 
         if options['policy_id']:
             qs = qs.filter(pk=options['policy_id'])
+
+        if options['source']:
+            qs = qs.filter(source__in=options['source'])
 
         if not options['force']:
             parsed_ids = ChecklistItem.objects.values_list('policy_id', flat=True).distinct()

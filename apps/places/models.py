@@ -9,6 +9,7 @@ class LocalPlace(models.Model):
         ('농협', '농협'), ('행정', '행정'), ('생활', '생활'),
         ('음식점', '음식점'), ('약국', '약국'), ('건축자재', '건축자재'),
         ('의류', '의류'), ('식품', '식품'), ('전자제품', '전자제품'), ('가구', '가구'),
+        ('동호회', '동호회'),
     ]
     name = models.CharField(max_length=100)
     category = models.CharField(max_length=20, choices=CATEGORIES)
