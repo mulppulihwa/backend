@@ -106,9 +106,9 @@ class TestApiErrors:
 
     @patch('lib.parsing.policy_parser.client')
     def test_pydantic_validation_error(self, mock_client):
-        # confidence 누락 → ValidationError → PolicyParseError
+        # 필수 필드(title) 누락 → ValidationError → PolicyParseError
         mock_client.messages.create.return_value = _make_tool_use_response(
-            {'title': '정책', 'summary': '요약'}  # confidence 없음
+            {'summary': '요약', 'confidence': 0.9, 'flags': []}
         )
         with pytest.raises(PolicyParseError, match='형식'):
             parse_policy('귀농인 대상 지원금 정책입니다. 만 65세 이상 옥천군 거주자.')

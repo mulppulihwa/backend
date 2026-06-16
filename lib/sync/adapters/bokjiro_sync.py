@@ -34,8 +34,8 @@ def _map_benefit_type(raw: str) -> str:
     return '기타'
 
 
-def _fetch_checklist_labels(service_id: str, api_key: str) -> list[str]:
-    """serviceDetail API에서 구비서류를 파싱해 체크리스트 항목 목록을 반환한다."""
+def _fetch_detail(service_id: str, api_key: str) -> dict:
+    """serviceDetail API에서 신청 방법·기관·구비서류를 가져온다."""
     try:
         res = httpx.get(
             BOKJIRO_DETAIL_URL,
@@ -45,13 +45,14 @@ def _fetch_checklist_labels(service_id: str, api_key: str) -> list[str]:
         res.raise_for_status()
     except httpx.HTTPError as e:
         logger.warning('serviceDetail 요청 실패 (%s): %s', service_id, e)
-        return []
+        return {'checklist_labels': [], 'how_to_apply': '', 'apply_institution': ''}
 
     data = res.json().get('data', [])
     if not data:
-        return []
+        return {'checklist_labels': [], 'how_to_apply': '', 'apply_institution': ''}
 
     detail = data[0]
+
     labels = []
     for field in ('구비서류', '본인확인필요구비서류'):
         text = (detail.get(field) or '').strip()
@@ -62,7 +63,11 @@ def _fetch_checklist_labels(service_id: str, api_key: str) -> list[str]:
             if line:
                 labels.append(line)
 
-    return labels
+    return {
+        'checklist_labels':  labels,
+        'how_to_apply':      (detail.get('신청방법') or '').strip(),
+        'apply_institution': (detail.get('접수기관명') or '').strip(),
+    }
 
 
 def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
@@ -123,19 +128,20 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
                 low_confidence += 1
 
             defaults = {
-                'title':        title,
-                'summary':      item.get('서비스목적요약', ''),
-                'description':  item.get('지원내용', ''),
-                'raw_text':     '\n'.join(filter(None, [
-                                    item.get('지원대상', ''),
-                                    item.get('선정기준', ''),
-                                    item.get('지원내용', ''),
-                                ])),
-                'managing_org': item.get('소관기관명', ''),
-                'apply_url':    item.get('상세조회URL', ''),
-                'benefit_type': _map_benefit_type(item.get('지원유형', '')),
-                'source':       '복지로',
-                'is_active':    is_active,
+                'title':              title,
+                'summary':            item.get('서비스목적요약', ''),
+                'description':        item.get('지원내용', ''),
+                'qualification_text': f"{item.get('지원대상', '')}\n{item.get('선정기준', '')}".strip(),
+                'raw_text':           '\n'.join(filter(None, [
+                                          item.get('지원대상', ''),
+                                          item.get('선정기준', ''),
+                                          item.get('지원내용', ''),
+                                      ])),
+                'managing_org':       item.get('소관기관명', ''),
+                'apply_url':          item.get('상세조회URL', ''),
+                'benefit_type':       _map_benefit_type(item.get('지원유형', '')),
+                'source':             '복지로',
+                'is_active':          is_active,
             }
             if result:
                 parsed = result['parsed']
@@ -153,14 +159,21 @@ def sync_bokjiro(per_page: int = 100, max_items: int | None = None) -> dict:
             )
 
             if created or not ChecklistItem.objects.filter(policy=policy_obj).exists():
-                labels = _fetch_checklist_labels(external_id, api_key)
-                if labels:
+                detail = _fetch_detail(external_id, api_key)
+                if detail['checklist_labels']:
                     ChecklistItem.objects.filter(policy=policy_obj).delete()
                     ChecklistItem.objects.bulk_create([
                         ChecklistItem(policy=policy_obj, order=i, label=label)
-                        for i, label in enumerate(labels)
+                        for i, label in enumerate(detail['checklist_labels'])
                     ])
                     cache.delete(f'checklist:{policy_obj.pk}')
+                update_fields = {}
+                if detail['how_to_apply']:
+                    update_fields['how_to_apply'] = detail['how_to_apply']
+                if detail['apply_institution']:
+                    update_fields['apply_institution'] = detail['apply_institution']
+                if update_fields:
+                    Policy.objects.filter(pk=policy_obj.pk).update(**update_fields)
 
             saved += 1
             processed += 1

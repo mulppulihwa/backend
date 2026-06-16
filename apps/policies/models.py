@@ -37,6 +37,11 @@ class Policy(models.Model):
     # AI 파싱용 공고문 원문
     raw_text = models.TextField(blank=True)
 
+    # 상세 안내 텍스트
+    qualification_text = models.TextField(blank=True)  # 지원 자격
+    how_to_apply       = models.TextField(blank=True)  # 신청 방법
+    apply_institution  = models.CharField(max_length=200, blank=True)  # 신청 기관
+
     # 신청 정보
     apply_start_date = models.DateField(null=True, blank=True)
     apply_end_date   = models.DateField(null=True, blank=True)
