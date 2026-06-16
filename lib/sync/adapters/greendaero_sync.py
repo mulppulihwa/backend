@@ -105,7 +105,8 @@ def sync_greendaero(max_items: int | None = None) -> dict:
         if result:
             parsed = result['parsed']
             for field in ('min_age', 'max_age', 'region_codes', 'occupation_tags',
-                          'income_level', 'amount_text', 'condition_tree', 'managing_org'):
+                          'income_level', 'amount_text', 'condition_tree', 'managing_org',
+                          'qualification_text', 'how_to_apply', 'apply_institution'):
                 if parsed.get(field) is not None:
                     defaults[field] = parsed[field]
             if parsed.get('apply_end_date'):

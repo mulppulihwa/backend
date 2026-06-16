@@ -29,10 +29,13 @@ class ParsedPolicy(BaseModel):
     household_type:  list[str] = []
     income_level:    list[str] = []
     move_status:     list[str] = []
-    amount_text:     Optional[str] = None
-    apply_end_date:  Optional[str] = None
-    managing_org:    Optional[str] = None
-    condition_tree:  Optional[dict] = None
+    amount_text:        Optional[str] = None
+    apply_end_date:     Optional[str] = None
+    managing_org:       Optional[str] = None
+    qualification_text: Optional[str] = None
+    how_to_apply:       Optional[str] = None
+    apply_institution:  Optional[str] = None
+    condition_tree:     Optional[dict] = None
     confidence:      float = 0.5
     flags:           list[str] = []
 
@@ -72,9 +75,12 @@ PARSE_TOOL = {
                                 'description': '가능한 값: 귀농, 귀촌, 노인, 여성농업인'},
             'income_level':    {'type': 'array', 'items': {'type': 'string'},
                                 'description': '가능한 값: 기초수급, 차상위, 일반'},
-            'amount_text':     {'type': 'string', 'description': '지원 금액 (예: 최대 300만원)'},
-            'apply_end_date':  {'type': 'string', 'description': '신청 마감일 YYYY-MM-DD'},
-            'managing_org':    {'type': 'string', 'description': '담당 기관명'},
+            'amount_text':        {'type': 'string', 'description': '지원 금액 (예: 최대 300만원)'},
+            'apply_end_date':     {'type': 'string', 'description': '신청 마감일 YYYY-MM-DD'},
+            'managing_org':       {'type': 'string', 'description': '담당 기관명 (정책을 운영·관리하는 기관)'},
+            'qualification_text': {'type': 'string', 'description': '지원 자격 조건 원문 요약 (누가 신청할 수 있는지)'},
+            'how_to_apply':       {'type': 'string', 'description': '신청 방법 (어떻게 신청하는지, 온라인/방문 등)'},
+            'apply_institution':  {'type': 'string', 'description': '신청 접수 기관명 (어디에 신청하는지)'},
             'condition_tree':  {'type': 'object',
                                 'description': '단순 태그로 표현 불가한 복합 조건만'},
             'confidence':      {'type': 'number',
