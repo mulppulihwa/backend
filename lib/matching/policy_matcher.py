@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 MATCH_LIMIT = 5
 
 # 옥천 큐레이션(옥천군청/수동입력) > 귀농센터 > 복지로 순으로 노출
-SOURCE_PRIORITY = {'옥천군청': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
+SOURCE_PRIORITY = {'옥천군청': 0, '옥천군 농업기술센터': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
 
 
 def match_policies(user_profile: dict) -> dict:
