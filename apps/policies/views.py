@@ -1,6 +1,8 @@
 import logging
+import threading
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import DatabaseError
 from django.utils import timezone
@@ -9,10 +11,18 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from lib.policy_matcher import match_policies
-from lib.policy_parser import PolicyParseError, parse_policy
-from .models import Policy
-from .serializers import PolicyCardSerializer, PolicyDetailSerializer
+CHECKLIST_CACHE_TTL = 60 * 60 * 24  # 24시간
+CHECKLIST_PARSING_TTL = 60 * 5       # 파싱 중 상태는 5분만 유지
+
+
+def checklist_cache_key(policy_id: int) -> str:
+    return f'checklist:{policy_id}'
+
+from lib.matching.policy_matcher import match_policies
+from lib.parsing.checklist_parser import parse_checklist
+from lib.parsing.policy_parser import PolicyParseError, parse_policy
+from .models import ChecklistItem, Policy
+from .serializers import ChecklistItemSerializer, PolicyCardSerializer, PolicyDetailSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -116,20 +126,93 @@ class PolicyParseView(APIView):
         return Response(result)
 
 
+class PolicyDetailView(APIView):
+    """정책 상세 조회."""
+
+    def get(self, request, policy_id):
+        try:
+            policy = Policy.objects.get(pk=policy_id, is_active=True)
+        except Policy.DoesNotExist:
+            return Response(
+                {'error': '정책을 찾을 수 없습니다.', 'code': 'policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(PolicyDetailSerializer(policy).data)
+
+
+def _parse_checklist_bg(policy_id: int) -> None:
+    """백그라운드: AI 파싱 후 DB·캐시 저장."""
+    key = checklist_cache_key(policy_id)
+    try:
+        policy = Policy.objects.get(pk=policy_id)
+        items = parse_checklist(policy.title, policy.raw_text)
+        if items:
+            ChecklistItem.objects.filter(policy=policy).delete()
+            ChecklistItem.objects.bulk_create([
+                ChecklistItem(policy=policy, order=item['order'], label=item['label'])
+                for item in items
+            ])
+            data = list(ChecklistItemSerializer(
+                policy.checklist_items.order_by('order'), many=True
+            ).data)
+            cache.set(key, {'items': data, 'parsing': False}, CHECKLIST_CACHE_TTL)
+        else:
+            cache.set(key, {'items': [], 'parsing': False}, CHECKLIST_CACHE_TTL)
+    except Exception:
+        logger.exception('Background checklist parse failed for policy %s', policy_id)
+        cache.delete(key)
+
+
+class PolicyChecklistView(APIView):
+    """정책별 준비물 목록 조회."""
+
+    def get(self, request, policy_id):
+        key = checklist_cache_key(policy_id)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response(cached)
+
+        try:
+            policy = Policy.objects.get(pk=policy_id, is_active=True)
+        except Policy.DoesNotExist:
+            return Response(
+                {'error': '정책을 찾을 수 없습니다.', 'code': 'policy_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        items = list(policy.checklist_items.all().order_by('order'))
+        if items:
+            data = list(ChecklistItemSerializer(items, many=True).data)
+            result = {'items': data, 'parsing': False}
+            cache.set(key, result, CHECKLIST_CACHE_TTL)
+            return Response(result)
+
+        # 체크리스트 없음 — raw_text가 있으면 백그라운드 파싱 트리거
+        if policy.raw_text and policy.raw_text.strip():
+            result = {'items': [], 'parsing': True}
+            cache.set(key, result, CHECKLIST_PARSING_TTL)
+            threading.Thread(target=_parse_checklist_bg, args=(policy_id,), daemon=True).start()
+        else:
+            result = {'items': [], 'parsing': False}
+            cache.set(key, result, CHECKLIST_CACHE_TTL)
+
+        return Response(result)
+
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _build_profile_dict(profile) -> dict:
     return {
-        'region_code':         profile.region_code,
         'age':                 profile.age,
         'gender':              profile.gender,
         'occupation_tags':     profile.occupation_tags,
+        'prev_residence_is_rural': profile.prev_residence_is_rural,
         'household_type':      profile.household_type,
         'income_level':        profile.income_level,
         'marital_status':      profile.marital_status,
         'is_farm_registered':  profile.is_farm_registered,
         'farm_registered_date': str(profile.farm_registered_date) if profile.farm_registered_date else None,
-        'education_hours':     profile.education_hours,
         'non_farm_income':     profile.non_farm_income,
         'years_since_move':    profile.years_since_move,
         'move_in_date':        str(profile.move_in_date) if profile.move_in_date else None,
@@ -143,8 +226,6 @@ def _build_match_reason(policy: Policy, profile: dict) -> str:
         overlap = set(policy.occupation_tags) & set(profile['occupation_tags'])
         if overlap:
             parts.append(', '.join(overlap))
-    if profile.get('region_code') and policy.region_codes:
-        parts.append('지역 조건 충족')
     if policy.min_age > 0 or policy.max_age < 130:
         age = profile.get('age')
         if age is not None:

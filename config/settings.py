@@ -1,14 +1,23 @@
+import os
 from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
-from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+# 로컬 .env 파일 로드 (Railway 등 배포 환경에서는 무시)
+_env_path = BASE_DIR / '.env'
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _, _v = _line.partition('=')
+            os.environ[_k.strip()] = _v.strip()
+
+SECRET_KEY = os.environ['SECRET_KEY']
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -61,7 +70,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-_db_url = config('DATABASE_URL').split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
+_redis_url = os.environ.get('REDIS_URL')
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': _redis_url,
+    } if _redis_url else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+
+_db_url = os.environ['DATABASE_URL'].split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
 DATABASES = {
     'default': dj_database_url.parse(_db_url, conn_max_age=600)
 }
@@ -106,21 +125,27 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = [
     o.strip()
-    for o in config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000').split(',')
+    for o in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+    if o.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
     if o.strip()
 ]
 
 # ── 카카오 OAuth ──────────────────────────────────────────────────────────────
 
-KAKAO_CLIENT_ID = config('KAKAO_CLIENT_ID')
-KAKAO_CLIENT_SECRET = config('KAKAO_CLIENT_SECRET')
-KAKAO_REDIRECT_URI = config('KAKAO_REDIRECT_URI')
+KAKAO_CLIENT_ID = os.environ['KAKAO_CLIENT_ID']
+KAKAO_CLIENT_SECRET = os.environ['KAKAO_CLIENT_SECRET']
+KAKAO_REDIRECT_URI = os.environ['KAKAO_REDIRECT_URI']
 
 # ── 외부 API ──────────────────────────────────────────────────────────────────
 
-KAKAO_LOCAL_API_KEY = config('KAKAO_LOCAL_API_KEY', default='')
-ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
-BOKJIRO_API_KEY = config('BOKJIRO_API_KEY', default='')
+KAKAO_LOCAL_API_KEY = os.environ.get('KAKAO_LOCAL_API_KEY', '')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+BOKJIRO_API_KEY = os.environ.get('BOKJIRO_API_KEY', '')
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 

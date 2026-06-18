@@ -8,6 +8,7 @@ BENEFIT_TYPES = [
 ]
 SOURCES = [
     ('복지로', '복지로'), ('수동입력', '수동입력'), ('귀농센터', '귀농센터'),
+    ('옥천군청', '옥천군청'), ('옥천군 농업기술센터', '옥천군 농업기술센터'),
 ]
 
 
@@ -34,12 +35,21 @@ class Policy(models.Model):
     # 복합 조건 트리
     condition_tree = models.JSONField(null=True, blank=True)
 
+    # AI 파싱용 공고문 원문
+    raw_text = models.TextField(blank=True)
+
+    # 상세 안내 텍스트
+    qualification_text = models.TextField(blank=True)  # 지원 자격
+    how_to_apply       = models.TextField(blank=True)  # 신청 방법
+    apply_institution  = models.CharField(max_length=200, blank=True)  # 신청 기관
+
     # 신청 정보
     apply_start_date = models.DateField(null=True, blank=True)
     apply_end_date   = models.DateField(null=True, blank=True)
     apply_url        = models.URLField(blank=True)
     managing_org     = models.CharField(max_length=100, blank=True)
     source_url       = models.URLField(blank=True)
+    published_at     = models.DateField(null=True, blank=True)  # 원문 공고 게시일
     external_id      = models.CharField(max_length=100, blank=True)
     is_active        = models.BooleanField(default=True)
     created_at       = models.DateTimeField(auto_now_add=True)
@@ -54,3 +64,13 @@ class Policy(models.Model):
             GinIndex(fields=['occupation_tags'],  name='idx_policies_occupation_tags'),
             GinIndex(fields=['income_level'],     name='idx_policies_income_level'),
         ]
+
+
+class ChecklistItem(models.Model):
+    policy = models.ForeignKey(Policy, on_delete=models.CASCADE, related_name='checklist_items')
+    order  = models.SmallIntegerField(default=0)
+    label  = models.CharField(max_length=200)
+
+    class Meta:
+        db_table = 'checklist_items'
+        ordering = ['order']

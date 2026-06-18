@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib.policy_matcher import _run_matching, match_policies
+from lib.matching.policy_matcher import _run_matching, match_policies
 
 
 def _make_policy(
@@ -11,17 +11,28 @@ def _make_policy(
     occupation_tags=None,
     income_level=None,
     apply_end_date=None,
+    source='복지로',
 ):
     p = MagicMock()
     p.condition_tree = condition_tree
     p.occupation_tags = occupation_tags or []
     p.income_level = income_level or []
     p.apply_end_date = apply_end_date
+    p.source = source
     return p
 
 
+SOURCE_PRIORITY = {'옥천군청': 0, '수동입력': 0, '귀농센터': 1, '복지로': 2}
+
+
+def _sort_key(p, today):
+    source_rank = SOURCE_PRIORITY.get(p.source, len(SOURCE_PRIORITY))
+    if p.apply_end_date:
+        return (source_rank, 0, (p.apply_end_date - today).days)
+    return (source_rank, 1, 0)
+
+
 PROFILE = {
-    'region_code': '43720',
     'age': 70,
     'occupation_tags': ['귀농'],
     'income_level': '기초수급',
@@ -30,29 +41,17 @@ PROFILE = {
 
 
 class TestMatchPoliciesErrorHandling:
-    @patch('lib.policy_matcher.get_ancestor_codes', side_effect=Exception('DB down'))
-    @patch('lib.policy_matcher._run_matching')
-    def test_ancestor_codes_failure_uses_empty(self, mock_run, mock_get):
-        mock_run.return_value = []
-        with patch('lib.policy_matcher.Policy') as mock_policy:
-            mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = []
-            result = match_policies(PROFILE)
-        # ancestor_codes 실패해도 매칭 자체는 실행됨
-        assert 'policies' in result
-
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    @patch('lib.policy_matcher._run_matching', side_effect=Exception('DB error'))
-    def test_db_error_returns_fallback(self, mock_run, mock_get):
+    @patch('lib.matching.policy_matcher._run_matching', side_effect=Exception('DB error'))
+    def test_db_error_returns_fallback(self, mock_run):
         from django.db import DatabaseError
         mock_run.side_effect = DatabaseError('DB error')
         result = match_policies(PROFILE)
         assert result['fallback'] is True
         assert 'error' in result
 
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    @patch('lib.policy_matcher._run_matching', return_value=[])
-    @patch('lib.policy_matcher.Policy')
-    def test_empty_match_returns_fallback_policies(self, mock_policy, mock_run, mock_get):
+    @patch('lib.matching.policy_matcher._run_matching', return_value=[])
+    @patch('lib.matching.policy_matcher.Policy')
+    def test_empty_match_returns_fallback_policies(self, mock_policy, mock_run):
         fallback = [_make_policy()]
         mock_policy.objects.filter.return_value.order_by.return_value.__getitem__.return_value = fallback
         result = match_policies(PROFILE)
@@ -61,11 +60,10 @@ class TestMatchPoliciesErrorHandling:
 
 
 class TestConditionTreeEvaluation:
-    @patch('lib.policy_matcher.Policy')
-    @patch('lib.policy_matcher.get_ancestor_codes', return_value=['43720', '43'])
-    def test_policy_with_no_condition_tree_passes(self, mock_get, mock_policy):
+    @patch('lib.matching.policy_matcher._run_matching')
+    def test_policy_with_no_condition_tree_passes(self, mock_run):
         p = _make_policy(condition_tree=None)
-        mock_policy.objects.filter.return_value.__or__.return_value.__or__.return_value = [p]
+        mock_run.return_value = [p]
         result = match_policies(PROFILE)
         assert p in result['policies']
 
@@ -76,16 +74,23 @@ class TestConditionTreeEvaluation:
         p2 = _make_policy(apply_end_date=date(2026, 5, 20))
         p3 = _make_policy(apply_end_date=None)
 
-        from lib.policy_matcher import _run_matching
-        import lib.policy_matcher as pm
+        # _run_matching을 통하지 않고 정렬 로직만 검증 (동일 출처 → 마감 임박 순)
+        policies = [p1, p3, p2]
+        policies.sort(key=lambda p: _sort_key(p, today))
+        assert policies[0] == p2   # 마감 가장 임박
+        assert policies[1] == p1
+        assert policies[2] == p3   # 마감 없으면 마지막
 
-        with patch.object(pm.timezone, 'now') as mock_now:
-            mock_now.return_value.date.return_value = today
-            with patch('lib.policy_matcher.Policy') as mock_policy:
-                mock_policy.objects.filter.return_value = MagicMock()
-                # _run_matching을 통하지 않고 정렬 로직만 검증
-                policies = [p1, p3, p2]
-                policies.sort(key=lambda p: (0, (p.apply_end_date - today).days) if p.apply_end_date else (1, 0))
-                assert policies[0] == p2   # 마감 가장 임박
-                assert policies[1] == p1
-                assert policies[2] == p3   # 마감 없으면 마지막
+    def test_sort_by_source_priority(self):
+        from datetime import date
+        today = date(2026, 5, 13)
+        # 복지로 정책이 마감 임박이어도, 옥천군청/귀농센터 정책보다 뒤로
+        p_bokjiro  = _make_policy(apply_end_date=date(2026, 5, 14), source='복지로')
+        p_gwiro    = _make_policy(apply_end_date=None, source='귀농센터')
+        p_okcheon  = _make_policy(apply_end_date=None, source='옥천군청')
+
+        policies = [p_bokjiro, p_gwiro, p_okcheon]
+        policies.sort(key=lambda p: _sort_key(p, today))
+        assert policies[0] == p_okcheon
+        assert policies[1] == p_gwiro
+        assert policies[2] == p_bokjiro

@@ -47,8 +47,9 @@ class UserProfile(models.Model):
     gender      = models.CharField(max_length=5, choices=GENDER_CHOICES, blank=True)
 
     # 귀농/귀촌 상태
-    occupation_tags = ArrayField(models.TextField(), default=list, blank=True)
-    move_in_date    = models.DateField(null=True, blank=True)
+    occupation_tags     = ArrayField(models.TextField(), default=list, blank=True)
+    move_in_date        = models.DateField(null=True, blank=True)
+    prev_residence_is_rural = models.BooleanField(null=True)  # 이전 거주지가 농촌(읍/면)이었는지 여부
 
     # 경제 상태
     household_type  = models.CharField(max_length=10, choices=HOUSEHOLD_CHOICES, blank=True)
@@ -59,10 +60,13 @@ class UserProfile(models.Model):
     # 농업 자격
     is_farm_registered   = models.BooleanField(null=True)
     farm_registered_date = models.DateField(null=True, blank=True)
-    education_hours      = models.SmallIntegerField(default=0)
 
     # 복지로 API 매칭용
     is_disabled = models.BooleanField(null=True)  # 장애 여부
+
+    @property
+    def nickname(self):
+        return self.user.nickname
 
     @property
     def age(self):
@@ -81,3 +85,21 @@ class UserProfile(models.Model):
 
     class Meta:
         db_table = 'user_profiles'
+
+
+class UserPolicy(models.Model):
+    class Status(models.TextChoices):
+        PENDING        = '신청예정'
+        APPLIED        = '신청완료'
+        NOT_INTERESTED = '관심없음'
+
+    profile       = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='user_policies')
+    policy        = models.ForeignKey('policies.Policy', on_delete=models.CASCADE)
+    status        = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    checked_items = ArrayField(models.IntegerField(), default=list)
+    d7_alerted_at = models.DateTimeField(null=True, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table        = 'user_policies'
+        unique_together = [['profile', 'policy']]

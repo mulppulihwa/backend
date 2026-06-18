@@ -34,3 +34,5 @@ build/
 # IDE
 .vscode/
 .idea/
+backend/
+.gstack/

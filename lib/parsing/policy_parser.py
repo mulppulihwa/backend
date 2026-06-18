@@ -1,16 +1,22 @@
 import logging
+import re
 from typing import Optional
 
 import anthropic
 from pydantic import BaseModel, ValidationError, field_validator
 
-from lib.exceptions import PolicyParseError
+from lib.exceptions import PolicyParseError  # noqa: lib root에 유지
 
 logger = logging.getLogger(__name__)
 
 client = anthropic.Anthropic()
 
 MAX_TEXT_LENGTH = 20_000  # Claude context 낭비 방지
+
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# 이 연도 이후의 마감일은 '상시/9999' 류 placeholder로 간주해 null 처리
+MAX_VALID_END_YEAR = 2030
 
 
 class ParsedPolicy(BaseModel):
@@ -23,17 +29,30 @@ class ParsedPolicy(BaseModel):
     household_type:  list[str] = []
     income_level:    list[str] = []
     move_status:     list[str] = []
-    amount_text:     Optional[str] = None
-    apply_end_date:  Optional[str] = None
-    managing_org:    Optional[str] = None
-    condition_tree:  Optional[dict] = None
-    confidence:      float
+    amount_text:        Optional[str] = None
+    apply_end_date:     Optional[str] = None
+    managing_org:       Optional[str] = None
+    qualification_text: Optional[str] = None
+    how_to_apply:       Optional[str] = None
+    apply_institution:  Optional[str] = None
+    condition_tree:     Optional[dict] = None
+    confidence:      float = 0.5
     flags:           list[str] = []
 
     @field_validator('income_level')
     def validate_income(cls, v):
         allowed = {'기초수급', '차상위', '일반'}
         return [x for x in v if x in allowed]
+
+    @field_validator('apply_end_date')
+    def validate_apply_end_date(cls, v):
+        # '상시', '예산소진시까지' 등 비확정 표현은 신청 마감일로 보지 않고 null 처리
+        if v and not DATE_RE.match(v):
+            return None
+        # 'YYYY-12-31'을 임의로 채운 먼 미래(2030년~) placeholder도 null 처리
+        if v and int(v[:4]) >= MAX_VALID_END_YEAR:
+            return None
+        return v
 
     @field_validator('confidence')
     def validate_confidence(cls, v):
@@ -56,9 +75,12 @@ PARSE_TOOL = {
                                 'description': '가능한 값: 귀농, 귀촌, 노인, 여성농업인'},
             'income_level':    {'type': 'array', 'items': {'type': 'string'},
                                 'description': '가능한 값: 기초수급, 차상위, 일반'},
-            'amount_text':     {'type': 'string', 'description': '지원 금액 (예: 최대 300만원)'},
-            'apply_end_date':  {'type': 'string', 'description': '신청 마감일 YYYY-MM-DD'},
-            'managing_org':    {'type': 'string', 'description': '담당 기관명'},
+            'amount_text':        {'type': 'string', 'description': '지원 금액 (예: 최대 300만원)'},
+            'apply_end_date':     {'type': 'string', 'description': '신청 마감일 YYYY-MM-DD'},
+            'managing_org':       {'type': 'string', 'description': '담당 기관명 (정책을 운영·관리하는 기관)'},
+            'qualification_text': {'type': 'string', 'description': '지원 자격 조건 원문 요약 (누가 신청할 수 있는지)'},
+            'how_to_apply':       {'type': 'string', 'description': '신청 방법 (어떻게 신청하는지, 온라인/방문 등)'},
+            'apply_institution':  {'type': 'string', 'description': '신청 접수 기관명 (어디에 신청하는지)'},
             'condition_tree':  {'type': 'object',
                                 'description': '단순 태그로 표현 불가한 복합 조건만'},
             'confidence':      {'type': 'number',
