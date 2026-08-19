@@ -64,6 +64,9 @@ class UserProfile(models.Model):
     # 복지로 API 매칭용
     is_disabled = models.BooleanField(null=True)  # 장애 여부
 
+    # 구하기 게시판 지원자 정보
+    applicant_name = models.TextField(blank=True)
+
     @property
     def nickname(self):
         return self.user.nickname

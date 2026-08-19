@@ -10,3 +10,5 @@ anthropic>=0.25
 pydantic>=2.6
 gunicorn>=22.0
 redis>=5.0
+django-storages[s3]>=1.14
+Pillow>=10.0

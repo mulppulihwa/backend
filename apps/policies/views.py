@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import timedelta
 
 from django.core.cache import cache
@@ -11,12 +12,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 CHECKLIST_CACHE_TTL = 60 * 60 * 24  # 24시간
+CHECKLIST_PARSING_TTL = 60 * 5       # 파싱 중 상태는 5분만 유지
 
 
 def checklist_cache_key(policy_id: int) -> str:
     return f'checklist:{policy_id}'
 
 from lib.matching.policy_matcher import match_policies
+from lib.parsing.checklist_parser import parse_checklist
 from lib.parsing.policy_parser import PolicyParseError, parse_policy
 from .models import ChecklistItem, Policy
 from .serializers import ChecklistItemSerializer, PolicyCardSerializer, PolicyDetailSerializer
@@ -138,6 +141,29 @@ class PolicyDetailView(APIView):
         return Response(PolicyDetailSerializer(policy).data)
 
 
+def _parse_checklist_bg(policy_id: int) -> None:
+    """백그라운드: AI 파싱 후 DB·캐시 저장."""
+    key = checklist_cache_key(policy_id)
+    try:
+        policy = Policy.objects.get(pk=policy_id)
+        items = parse_checklist(policy.title, policy.raw_text)
+        if items:
+            ChecklistItem.objects.filter(policy=policy).delete()
+            ChecklistItem.objects.bulk_create([
+                ChecklistItem(policy=policy, order=item['order'], label=item['label'])
+                for item in items
+            ])
+            data = list(ChecklistItemSerializer(
+                policy.checklist_items.order_by('order'), many=True
+            ).data)
+            cache.set(key, {'items': data, 'parsing': False}, CHECKLIST_CACHE_TTL)
+        else:
+            cache.set(key, {'items': [], 'parsing': False}, CHECKLIST_CACHE_TTL)
+    except Exception:
+        logger.exception('Background checklist parse failed for policy %s', policy_id)
+        cache.delete(key)
+
+
 class PolicyChecklistView(APIView):
     """정책별 준비물 목록 조회."""
 
@@ -155,9 +181,23 @@ class PolicyChecklistView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        data = ChecklistItemSerializer(policy.checklist_items.all(), many=True).data
-        cache.set(key, data, CHECKLIST_CACHE_TTL)
-        return Response(data)
+        items = list(policy.checklist_items.all().order_by('order'))
+        if items:
+            data = list(ChecklistItemSerializer(items, many=True).data)
+            result = {'items': data, 'parsing': False}
+            cache.set(key, result, CHECKLIST_CACHE_TTL)
+            return Response(result)
+
+        # 체크리스트 없음 — raw_text가 있으면 백그라운드 파싱 트리거
+        if policy.raw_text and policy.raw_text.strip():
+            result = {'items': [], 'parsing': True}
+            cache.set(key, result, CHECKLIST_PARSING_TTL)
+            threading.Thread(target=_parse_checklist_bg, args=(policy_id,), daemon=True).start()
+        else:
+            result = {'items': [], 'parsing': False}
+            cache.set(key, result, CHECKLIST_CACHE_TTL)
+
+        return Response(result)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
