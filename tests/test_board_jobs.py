@@ -146,6 +146,19 @@ class TestJobApplyAPI:
         assert res.status_code == 400
         assert res.data['code'] == 'already_applied'
 
+    def test_apply_with_overlong_name_returns_400_not_500(self):
+        writer = User.objects.create_user(kakao_id='writer11')
+        applicant = User.objects.create_user(kakao_id='applicant6')
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        res = client.post(f'/api/board/jobs/{post.id}/apply/', {
+            'name': '가' * 60, 'phone': '010-1234-5678',
+        })
+        assert res.status_code == 400
+        assert JobApplication.objects.filter(job_post=post, applicant=applicant).exists() is False
+
     def test_applications_list_owner_only(self):
         writer = User.objects.create_user(kakao_id='writer10')
         applicant = User.objects.create_user(kakao_id='applicant5')

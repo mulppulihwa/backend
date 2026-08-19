@@ -43,6 +43,12 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'phone', 'message', 'applied_at']
 
 
+class JobApplicationWriteSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    message = serializers.CharField(required=False, allow_blank=True, default='')
+
+
 class HousingPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = HousingPhoto

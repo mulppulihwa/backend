@@ -1,7 +1,10 @@
 """apps.board HousingPost/HousingPhoto 모델 + API 테스트."""
+import io
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from PIL import Image
 
 from apps.board.models import HousingPhoto, HousingPost
 from apps.users.models import User
@@ -11,6 +14,14 @@ TEST_STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
 }
+
+
+def make_real_image(name='room.jpg'):
+    """뷰의 Pillow 기반 이미지 검증을 통과하는 실제 JPEG 업로드 파일을 생성한다."""
+    buf = io.BytesIO()
+    Image.new('RGB', (10, 10), color='red').save(buf, format='JPEG')
+    buf.seek(0)
+    return SimpleUploadedFile(name, buf.read(), content_type='image/jpeg')
 
 
 @override_settings(STORAGES=TEST_STORAGES)
@@ -63,8 +74,8 @@ class TestHousingPostAPI:
         client = APIClient()
         client.force_authenticate(user=user)
 
-        image1 = SimpleUploadedFile('room1.jpg', b'fake-bytes-1', content_type='image/jpeg')
-        image2 = SimpleUploadedFile('room2.jpg', b'fake-bytes-2', content_type='image/jpeg')
+        image1 = make_real_image('room1.jpg')
+        image2 = make_real_image('room2.jpg')
 
         res = client.post('/api/board/housing/', {
             'title': '옥천읍 분리형 원룸', 'region': '옥천읍', 'detail_address': '옥천군 옥천읍 어딘가',
@@ -78,6 +89,51 @@ class TestHousingPostAPI:
         assert len(res.data['photos']) == 2
         assert res.data['options'] == ['에어컨', '냉장고']
         mock_geocode.assert_called_once_with('옥천군 옥천읍 어딘가')
+
+    @patch('apps.board.views.geocode_address', return_value=None)
+    def test_create_with_invalid_image_returns_400(self, mock_geocode, tmp_path, settings):
+        settings.STORAGES = TEST_STORAGES
+        settings.MEDIA_ROOT = tmp_path
+        user = User.objects.create_user(kakao_id='landlord5')
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        not_an_image = SimpleUploadedFile('not_image.txt', b'this is not an image', content_type='text/plain')
+
+        res = client.post('/api/board/housing/', {
+            'title': '옥천읍 분리형 원룸', 'region': '옥천읍', 'detail_address': '옥천군 옥천읍 어딘가',
+            'room_type': '원룸', 'deal_type': '월세', 'deposit': 500, 'monthly_rent': 30,
+            'contact_name': '집주인', 'contact_phone': '010-1234-5678',
+            'images': [not_an_image],
+        }, format='multipart')
+
+        assert res.status_code == 400
+        assert res.data['code'] == 'invalid_image'
+        assert HousingPost.objects.count() == 0
+
+    @patch('apps.board.views.geocode_address', return_value=None)
+    def test_create_with_too_many_images_returns_400(self, mock_geocode, tmp_path, settings):
+        settings.STORAGES = TEST_STORAGES
+        settings.MEDIA_ROOT = tmp_path
+        user = User.objects.create_user(kakao_id='landlord6')
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        images = [
+            SimpleUploadedFile(f'room{i}.jpg', b'fake-bytes', content_type='image/jpeg')
+            for i in range(11)
+        ]
+
+        res = client.post('/api/board/housing/', {
+            'title': '옥천읍 분리형 원룸', 'region': '옥천읍', 'detail_address': '옥천군 옥천읍 어딘가',
+            'room_type': '원룸', 'deal_type': '월세', 'deposit': 500, 'monthly_rent': 30,
+            'contact_name': '집주인', 'contact_phone': '010-1234-5678',
+            'images': images,
+        }, format='multipart')
+
+        assert res.status_code == 400
+        assert res.data['code'] == 'too_many_images'
+        assert HousingPost.objects.count() == 0
 
     def test_non_owner_cannot_edit_or_delete(self, tmp_path, settings):
         settings.STORAGES = TEST_STORAGES

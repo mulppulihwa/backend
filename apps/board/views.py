@@ -1,3 +1,6 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -9,8 +12,12 @@ from lib.services.geocoding import geocode_address
 from .models import HousingPhoto, HousingPost, JobApplication, JobPost
 from .serializers import (
     HousingPostSerializer, HousingPostWriteSerializer,
-    JobApplicationSerializer, JobPostSerializer, JobPostWriteSerializer,
+    JobApplicationSerializer, JobApplicationWriteSerializer,
+    JobPostSerializer, JobPostWriteSerializer,
 )
+
+MAX_HOUSING_IMAGES = 10
+MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
 
 
 class JobPostListView(APIView):
@@ -112,18 +119,28 @@ class JobApplyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        name = request.data.get('name') or request.user.profile.applicant_name
-        phone = request.data.get('phone') or request.user.phone
+        apply_serializer = JobApplicationWriteSerializer(data=request.data)
+        apply_serializer.is_valid(raise_exception=True)
+        validated_data = apply_serializer.validated_data
+
+        name = validated_data.get('name') or request.user.profile.applicant_name
+        phone = validated_data.get('phone') or request.user.phone
         if not name or not phone:
             return Response(
                 {'error': '이름과 전화번호를 입력해주세요.', 'code': 'missing_applicant_info'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        application = JobApplication.objects.create(
-            job_post=job_post, applicant=request.user,
-            name=name, phone=phone, message=request.data.get('message', ''),
-        )
+        try:
+            application = JobApplication.objects.create(
+                job_post=job_post, applicant=request.user,
+                name=name, phone=phone, message=validated_data.get('message', ''),
+            )
+        except IntegrityError:
+            return Response(
+                {'error': '이미 지원한 모집글입니다.', 'code': 'already_applied'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         profile = request.user.profile
         if profile.applicant_name != name:
@@ -180,16 +197,37 @@ class HousingPostListView(APIView):
         serializer = HousingPostWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        images = request.FILES.getlist('images')
+        if len(images) > MAX_HOUSING_IMAGES:
+            return Response(
+                {'error': f'사진은 최대 {MAX_HOUSING_IMAGES}장까지 업로드할 수 있습니다.', 'code': 'too_many_images'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        image_field = drf_serializers.ImageField()
+        for img in images:
+            if img.size > MAX_IMAGE_SIZE_BYTES:
+                return Response(
+                    {'error': '이미지 파일은 10MB 이하여야 합니다.', 'code': 'image_too_large'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                image_field.run_validation(img)
+            except (drf_serializers.ValidationError, DjangoValidationError):
+                return Response(
+                    {'error': '올바른 이미지 파일이 아닙니다.', 'code': 'invalid_image'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            img.seek(0)
+
         coords = geocode_address(serializer.validated_data['detail_address'])
         lat, lng = coords if coords else (None, None)
 
-        post = serializer.save(created_by=request.user, lat=lat, lng=lng)
-
-        images = request.FILES.getlist('images')
-        HousingPhoto.objects.bulk_create([
-            HousingPhoto(housing_post=post, image=img, order=i)
-            for i, img in enumerate(images)
-        ])
+        with transaction.atomic():
+            post = serializer.save(created_by=request.user, lat=lat, lng=lng)
+            HousingPhoto.objects.bulk_create([
+                HousingPhoto(housing_post=post, image=img, order=i)
+                for i, img in enumerate(images)
+            ])
 
         return Response(
             HousingPostSerializer(post, context={'request': request}).data,
