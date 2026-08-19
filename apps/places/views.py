@@ -1,3 +1,4 @@
+from django.db.models import Count, Exists, OuterRef
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -5,7 +6,7 @@ from rest_framework.views import APIView
 
 from lib.services.geocoding import geocode_address
 
-from .models import LocalPlace
+from .models import LocalPlace, PlaceEndorsement
 from .serializers import LocalPlaceSerializer, LocalPlaceWriteSerializer
 
 
@@ -16,7 +17,16 @@ class PlaceListView(APIView):
         return [AllowAny()]
 
     def get(self, request):
-        places = LocalPlace.objects.filter(is_active=True).order_by('name')
+        places = LocalPlace.objects.filter(is_active=True).annotate(
+            endorsement_count_anno=Count('endorsements'),
+        )
+        if request.user.is_authenticated:
+            places = places.annotate(
+                is_endorsed_anno=Exists(
+                    PlaceEndorsement.objects.filter(place=OuterRef('pk'), user=request.user)
+                ),
+            )
+        places = places.order_by('name')
         return Response(
             LocalPlaceSerializer(places, many=True, context={'request': request}).data
         )
