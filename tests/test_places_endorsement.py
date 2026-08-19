@@ -101,3 +101,34 @@ def test_endorse_nonexistent_place_404():
     res = client.post('/api/places/99999/endorse/')
     assert res.status_code == 404
     assert res.data['code'] == 'place_not_found'
+
+
+@pytest.mark.django_db
+def test_detail_view_exposes_endorsement_fields_via_fallback():
+    """PlaceDetailView.get은 annotate 없이 조회하므로 serializer의 fallback(.count()/.filter().exists()) 경로를 탄다."""
+    place = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    user = User.objects.create_user(kakao_id='endorser7')
+    PlaceEndorsement.objects.create(place=place, user=user)
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    res = client.get(f'/api/places/{place.id}/')
+    assert res.status_code == 200
+    assert res.data['endorsement_count'] == 1
+    assert res.data['is_endorsed'] is True
+
+
+@pytest.mark.django_db
+def test_create_view_exposes_endorsement_fields_via_fallback():
+    """PlaceListView.post도 annotate 없이 새로 저장한 인스턴스를 직렬화하므로 fallback 경로를 탄다."""
+    user = User.objects.create_user(kakao_id='creator1')
+    client = APIClient()
+    client.force_authenticate(user=user)
+    res = client.post('/api/places/', {
+        'name': '옥천 마트',
+        'category': '식품',
+        'address': '옥천군 옥천읍 어딘가',
+    })
+    assert res.status_code == 201
+    assert res.data['endorsement_count'] == 0
+    assert res.data['is_endorsed'] is False
