@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import JobPost
+from .models import JobApplication, JobPost
 
 
 class JobPostSerializer(serializers.ModelSerializer):
@@ -35,3 +35,9 @@ class JobPostWriteSerializer(serializers.ModelSerializer):
             'recruit_count': {'required': False},
             'conditions': {'required': False},
         }
+
+
+class JobApplicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobApplication
+        fields = ['id', 'name', 'phone', 'message', 'applied_at']

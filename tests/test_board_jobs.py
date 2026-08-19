@@ -95,3 +95,71 @@ class TestJobPostAPI:
 
         post.refresh_from_db()
         assert post.is_active is False
+
+
+@pytest.mark.django_db
+class TestJobApplyAPI:
+    def test_apply_requires_auth(self):
+        writer = User.objects.create_user(kakao_id='writer6')
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+
+        res = APIClient().post(f'/api/board/jobs/{post.id}/apply/', {'name': '홍길동', 'phone': '010-0000-0000'})
+        assert res.status_code == 401
+
+    def test_apply_saves_name_and_phone_for_autofill(self):
+        writer = User.objects.create_user(kakao_id='writer7')
+        applicant = User.objects.create_user(kakao_id='applicant2')
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        res = client.post(f'/api/board/jobs/{post.id}/apply/', {'name': '김철수', 'phone': '010-1234-5678'})
+        assert res.status_code == 201
+
+        applicant.refresh_from_db()
+        assert applicant.phone == '010-1234-5678'
+        assert applicant.profile.applicant_name == '김철수'
+
+    def test_apply_autofills_from_saved_profile(self):
+        writer = User.objects.create_user(kakao_id='writer8')
+        applicant = User.objects.create_user(kakao_id='applicant3', phone='010-9999-8888')
+        applicant.profile.applicant_name = '박영희'
+        applicant.profile.save(update_fields=['applicant_name'])
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        res = client.post(f'/api/board/jobs/{post.id}/apply/', {})
+        assert res.status_code == 201
+        assert res.data['name'] == '박영희'
+        assert res.data['phone'] == '010-9999-8888'
+
+    def test_duplicate_apply_returns_400(self):
+        writer = User.objects.create_user(kakao_id='writer9')
+        applicant = User.objects.create_user(kakao_id='applicant4')
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        client.post(f'/api/board/jobs/{post.id}/apply/', {'name': '지원자', 'phone': '010-1111-1111'})
+        res = client.post(f'/api/board/jobs/{post.id}/apply/', {'name': '지원자', 'phone': '010-1111-1111'})
+        assert res.status_code == 400
+        assert res.data['code'] == 'already_applied'
+
+    def test_applications_list_owner_only(self):
+        writer = User.objects.create_user(kakao_id='writer10')
+        applicant = User.objects.create_user(kakao_id='applicant5')
+        other = User.objects.create_user(kakao_id='other2')
+        post = JobPost.objects.create(title='공고', category='돌봄', description='설명', created_by=writer)
+        JobApplication.objects.create(job_post=post, applicant=applicant, name='지원자', phone='010-2222-2222')
+
+        client = APIClient()
+        client.force_authenticate(user=other)
+        res = client.get(f'/api/board/jobs/{post.id}/applications/')
+        assert res.status_code == 403
+
+        client.force_authenticate(user=writer)
+        res = client.get(f'/api/board/jobs/{post.id}/applications/')
+        assert res.status_code == 200
+        assert len(res.data) == 1
+        assert res.data[0]['name'] == '지원자'

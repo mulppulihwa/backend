@@ -3,8 +3,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import JobPost
-from .serializers import JobPostSerializer, JobPostWriteSerializer
+from .models import JobApplication, JobPost
+from .serializers import JobApplicationSerializer, JobPostSerializer, JobPostWriteSerializer
 
 
 class JobPostListView(APIView):
@@ -86,3 +86,67 @@ class JobPostDetailView(APIView):
         post.is_active = False
         post.save(update_fields=['is_active'])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class JobApplyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            job_post = JobPost.objects.get(pk=pk, is_active=True)
+        except JobPost.DoesNotExist:
+            return Response(
+                {'error': '모집글을 찾을 수 없습니다.', 'code': 'job_post_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if JobApplication.objects.filter(job_post=job_post, applicant=request.user).exists():
+            return Response(
+                {'error': '이미 지원한 모집글입니다.', 'code': 'already_applied'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        name = request.data.get('name') or request.user.profile.applicant_name
+        phone = request.data.get('phone') or request.user.phone
+        if not name or not phone:
+            return Response(
+                {'error': '이름과 전화번호를 입력해주세요.', 'code': 'missing_applicant_info'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        application = JobApplication.objects.create(
+            job_post=job_post, applicant=request.user,
+            name=name, phone=phone, message=request.data.get('message', ''),
+        )
+
+        profile = request.user.profile
+        if profile.applicant_name != name:
+            profile.applicant_name = name
+            profile.save(update_fields=['applicant_name'])
+        if request.user.phone != phone:
+            request.user.phone = phone
+            request.user.save(update_fields=['phone'])
+
+        return Response(JobApplicationSerializer(application).data, status=status.HTTP_201_CREATED)
+
+
+class JobApplicationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            job_post = JobPost.objects.get(pk=pk, is_active=True)
+        except JobPost.DoesNotExist:
+            return Response(
+                {'error': '모집글을 찾을 수 없습니다.', 'code': 'job_post_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if job_post.created_by_id != request.user.id:
+            return Response(
+                {'error': '작성자만 지원자 목록을 볼 수 있습니다.', 'code': 'not_owner'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        applications = job_post.applications.order_by('-applied_at')
+        return Response(JobApplicationSerializer(applications, many=True).data)
