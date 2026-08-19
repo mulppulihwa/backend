@@ -34,3 +34,16 @@ class JobPost(models.Model):
             models.Index(fields=['category']),
             models.Index(fields=['region']),
         ]
+
+
+class JobApplication(models.Model):
+    job_post = models.ForeignKey(JobPost, on_delete=models.CASCADE, related_name='applications')
+    applicant = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='job_applications')
+    name = models.CharField(max_length=50)
+    phone = models.CharField(max_length=20)
+    message = models.TextField(blank=True)
+    applied_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'job_applications'
+        unique_together = [['job_post', 'applicant']]
