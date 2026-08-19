@@ -111,3 +111,23 @@ class PlaceDetailView(APIView):
         place.is_active = False
         place.save(update_fields=['is_active'])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PlaceEndorseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            place = LocalPlace.objects.get(pk=pk, is_active=True)
+        except LocalPlace.DoesNotExist:
+            return Response(
+                {'error': '사용처를 찾을 수 없습니다.', 'code': 'place_not_found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        PlaceEndorsement.objects.get_or_create(place=place, user=request.user)
+
+        return Response({
+            'endorsement_count': place.endorsements.count(),
+            'is_endorsed': True,
+        })

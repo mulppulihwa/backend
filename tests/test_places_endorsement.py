@@ -57,3 +57,47 @@ def test_serializer_is_endorsed_false_for_other_user():
     data = next(p for p in res.data if p['id'] == place.id)
     assert data['endorsement_count'] == 1
     assert data['is_endorsed'] is False
+
+
+@pytest.mark.django_db
+def test_endorse_requires_auth():
+    place = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    res = APIClient().post(f'/api/places/{place.id}/endorse/')
+    assert res.status_code == 401
+
+
+@pytest.mark.django_db
+def test_endorse_increments_count():
+    place = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    user = User.objects.create_user(kakao_id='endorser4')
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    res = client.post(f'/api/places/{place.id}/endorse/')
+    assert res.status_code == 200
+    assert res.data['endorsement_count'] == 1
+    assert res.data['is_endorsed'] is True
+
+
+@pytest.mark.django_db
+def test_endorse_twice_is_idempotent():
+    place = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    user = User.objects.create_user(kakao_id='endorser5')
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    client.post(f'/api/places/{place.id}/endorse/')
+    res = client.post(f'/api/places/{place.id}/endorse/')
+    assert res.status_code == 200
+    assert res.data['endorsement_count'] == 1
+    assert PlaceEndorsement.objects.filter(place=place, user=user).count() == 1
+
+
+@pytest.mark.django_db
+def test_endorse_nonexistent_place_404():
+    user = User.objects.create_user(kakao_id='endorser6')
+    client = APIClient()
+    client.force_authenticate(user=user)
+    res = client.post('/api/places/99999/endorse/')
+    assert res.status_code == 404
+    assert res.data['code'] == 'place_not_found'
