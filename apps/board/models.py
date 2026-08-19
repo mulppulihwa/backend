@@ -1,3 +1,4 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 OKCHEON_REGIONS = [
@@ -47,3 +48,53 @@ class JobApplication(models.Model):
     class Meta:
         db_table = 'job_applications'
         unique_together = [['job_post', 'applicant']]
+
+
+ROOM_TYPES = [
+    ('원룸', '원룸'), ('투룸이상', '투룸이상'), ('오피스텔', '오피스텔'), ('주택', '주택'), ('기타', '기타'),
+]
+DEAL_TYPES = [('전세', '전세'), ('월세', '월세')]
+
+
+class HousingPost(models.Model):
+    title = models.CharField(max_length=100)
+    region = models.CharField(max_length=10, choices=OKCHEON_REGIONS, blank=True)
+    detail_address = models.TextField()
+    room_type = models.CharField(max_length=10, choices=ROOM_TYPES)
+    room_layout = models.CharField(max_length=100, blank=True)
+    size_pyeong = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    deal_type = models.CharField(max_length=10, choices=DEAL_TYPES)
+    deposit = models.IntegerField(null=True, blank=True)
+    monthly_rent = models.IntegerField(null=True, blank=True)
+    maintenance_fee = models.IntegerField(null=True, blank=True)
+    options = ArrayField(models.TextField(), default=list, blank=True)
+    description = models.TextField(blank=True)
+    contact_name = models.CharField(max_length=50)
+    contact_phone = models.CharField(max_length=20)
+    lat = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    lng = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    created_by = models.ForeignKey(
+        'users.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='housing_posts',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'housing_posts'
+        indexes = [
+            models.Index(fields=['room_type']),
+            models.Index(fields=['region']),
+        ]
+
+
+class HousingPhoto(models.Model):
+    housing_post = models.ForeignKey(HousingPost, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='housing_photos/')
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'housing_photos'
+        ordering = ['order', 'id']

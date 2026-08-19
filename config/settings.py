@@ -110,6 +110,28 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# ── Cloudflare R2 (이미지 저장) ─────────────────────────────────────────────
+
+_r2_account_id = os.environ.get('R2_ACCOUNT_ID', '')
+STORAGES = {
+    'default': {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'OPTIONS': {
+            'access_key': os.environ.get('R2_ACCESS_KEY_ID', ''),
+            'secret_key': os.environ.get('R2_SECRET_ACCESS_KEY', ''),
+            'bucket_name': os.environ.get('R2_BUCKET_NAME', ''),
+            'endpoint_url': f'https://{_r2_account_id}.r2.cloudflarestorage.com' if _r2_account_id else '',
+            'addressing_style': 'virtual',
+            'default_acl': None,
+            'querystring_auth': False,
+            'custom_domain': os.environ.get('R2_PUBLIC_URL', '').replace('https://', '').replace('http://', ''),
+        },
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── DRF ──────────────────────────────────────────────────────────────────────
