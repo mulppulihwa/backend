@@ -52,8 +52,11 @@ _db_url = os.environ['DATABASE_URL'].split('?')[0]  # psycopg2는 ?pgbouncer=tru
 아래로 교체:
 ```python
 # pytest 실행 중에는 DIRECT_URL(논-풀링) 사용 — pgbouncer transaction pooling은
-# 테스트 DB 생성(CREATE DATABASE) 같은 세션 단위 명령을 지원하지 않음
-_running_pytest = 'PYTEST_CURRENT_TEST' in os.environ
+# 테스트 DB 생성(CREATE DATABASE) 같은 세션 단위 명령을 지원하지 않음.
+# PYTEST_VERSION은 pytest 프로세스가 시작되는 즉시(설정 로드보다 먼저) 채워지는
+# 환경변수라 여기서 감지에 쓸 수 있다 — PYTEST_CURRENT_TEST는 테스트 1개가
+# 실행되는 시점에야 채워지므로(Django settings는 그보다 먼저 import됨) 여기서는 못 쓴다.
+_running_pytest = 'PYTEST_VERSION' in os.environ
 _db_url = os.environ.get('DIRECT_URL', os.environ['DATABASE_URL']) if _running_pytest else os.environ['DATABASE_URL']
 _db_url = _db_url.split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
 ```
