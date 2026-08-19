@@ -80,7 +80,11 @@ CACHES = {
     }
 }
 
-_db_url = os.environ['DATABASE_URL'].split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
+# pytest 실행 중에는 DIRECT_URL(논-풀링) 사용 — pgbouncer transaction pooling은
+# 테스트 DB 생성(CREATE DATABASE) 같은 세션 단위 명령을 지원하지 않음
+_running_pytest = 'PYTEST_CURRENT_TEST' in os.environ
+_db_url = os.environ.get('DIRECT_URL', os.environ['DATABASE_URL']) if _running_pytest else os.environ['DATABASE_URL']
+_db_url = _db_url.split('?')[0]  # psycopg2는 ?pgbouncer=true 등 미지원 파라미터 거부
 DATABASES = {
     'default': dj_database_url.parse(_db_url, conn_max_age=600)
 }
