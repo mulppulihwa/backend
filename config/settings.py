@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.policies',
     'apps.places',
     'apps.regions',
+    'apps.board',
 ]
 
 MIDDLEWARE = [
