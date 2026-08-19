@@ -23,7 +23,7 @@ URL prefix: `/api/board/` (기존 `path('api/<name>/', include('apps.<name>.urls
 |---|---|---|
 | title | CharField | 게시글 제목 |
 | category | CharField(choices) | 농촌일손·주택수리·돌봄·동아리·기타 — 상단 필터 대상 |
-| region | FK `regions.Region`, null=True | 읍/면 |
+| region | CharField(choices), blank=True | 옥천군 읍/면 (아래 "지역 필드" 참고) |
 | description | TextField | 모집 내용 |
 | location | CharField | 장소(자유 텍스트) |
 | start_date, end_date | DateField, null=True | 모집 기간 |
@@ -49,7 +49,7 @@ URL prefix: `/api/board/` (기존 `path('api/<name>/', include('apps.<name>.urls
 | 필드 | 타입 | 비고 |
 |---|---|---|
 | title | CharField | |
-| region | FK `regions.Region`, null=True | 읍/면 |
+| region | CharField(choices), blank=True | 옥천군 읍/면 (아래 "지역 필드" 참고) |
 | detail_address | TextField | 자세한 주소 |
 | room_type | CharField(choices) | 원룸·투룸이상·오피스텔·주택·기타 — 상단 필터 대상 |
 | room_layout | CharField, blank=True | 자유 텍스트, 예: "분리형 원룸" (목록에 표시) |
@@ -73,6 +73,10 @@ URL prefix: `/api/board/` (기존 `path('api/<name>/', include('apps.<name>.urls
 | image | ImageField | Cloudflare R2 저장 (아래 인프라 섹션) |
 | order | IntegerField(default=0) | 표시 순서 |
 | created_at | DateTimeField(auto_now_add) | |
+
+### 지역 필드
+
+`regions.Region`은 시/도~시/군 단위(전국 28개 행)까지만 시드되어 있고 옥천군(43720) 밑의 읍/면 단위 데이터가 없다. 이 앱은 옥천군 하나만 다루는 로컬 서비스라 전국 행정구역 계층을 새로 채워 넣을 필요는 없다고 판단, `region`은 `regions.Region` FK 대신 **레포 컨벤션(`LocalPlace.CATEGORIES`처럼 고정 `choices`)을 따르는 `CharField`**로 둔다. 선택지는 `apps/places/management/commands/add_okcheon_places.py`에서 이미 쓰인 8개 읍/면과 동일하게 맞춘다: 옥천읍·동이면·안남면·청성면·청산면·이원면·군서면·군북면.
 
 ## API 엔드포인트
 
@@ -98,13 +102,13 @@ URL prefix: `/api/board/` (기존 `path('api/<name>/', include('apps.<name>.urls
 - **스토리지**: Cloudflare R2 (S3 호환 API). Railway는 재배포 시 파일시스템이 초기화되므로 로컬 저장은 쓰지 않는다.
 - 추가 패키지: `django-storages[s3]`, `boto3`, `Pillow`(ImageField 필수 의존성) → `requirements.txt`에 추가
 - 설정(`config/settings.py`에 추가): `DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`(R2 API 토큰), `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL`(R2 엔드포인트), `AWS_S3_ADDRESSING_STYLE='virtual'`, `AWS_DEFAULT_ACL=None`(R2는 ACL 미지원)
-- 사용자가 Cloudflare 대시보드에서 R2 버킷 생성 + API 토큰 발급 + 공개 액세스(커스텀 도메인 또는 r2.dev 서브도메인) 활성화 필요 — **구현 착수 전 사용자가 값을 제공해야 하는 외부 의존성**
+- R2 버킷 생성 + Account API Token(Object Read & Write, 버킷 범위 지정) 발급 완료, 루트 `.env`에 `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET_NAME`/`R2_PUBLIC_URL` 값 설정 완료 — 구현 시 이 키 이름 그대로 읽어서 settings에 연결. Railway 프로덕션 환경변수에도 동일 값 등록 필요(배포 단계에서 처리)
 - 업로드 뷰는 `MultiPartParser`를 명시적으로 사용
 
 ## 재사용하는 기존 컴포넌트
 
-- `regions.Region` — 읍/면 FK. **확인 필요**: 로컬에서 DB 연결이 안 돼 실제 시드 데이터 존재 여부를 확인하지 못함. Railway 재배포/DB 복구 후 `Region.objects.count()`로 확인 필요. 비어있다면 시딩 커맨드 추가 필요
-- `lib/services/geocoding.geocode_address` — 주소→좌표. `KAKAO_LOCAL_API_KEY`가 현재 `.env`에 미설정 상태라 실제로는 no-op임. 지오코딩을 쓰려면 키 설정 필요 (없어도 기능은 동작하며 lat/lng만 비게 됨)
+- `regions.Region` — 위 "지역 필드"에서 결정한 대로 FK로 쓰지 않음(옥천군 읍/면 데이터 없음, 고정 choices로 대체)
+- `lib/services/geocoding.geocode_address` — 주소→좌표. Railway 프로덕션 환경변수에는 `KAKAO_LOCAL_API_KEY`가 설정되어 있음을 확인(로컬 `.env`에는 없었음 — 로컬 개발 시엔 no-op으로 lat/lng만 비게 됨, 배포 환경에서는 정상 동작)
 - `apps.users` 인증/프로필 — JWT(`rest_framework_simplejwt`), `UserProfile`은 `User` 생성 시 signal로 자동 생성됨. 지원자 이름/전화번호 자동완성은 `User.phone` + 신규 `UserProfile.applicant_name` 필드로 처리
 
 ## 테스트
