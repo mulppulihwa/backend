@@ -24,6 +24,11 @@ class LocalPlace(models.Model):
     price_notes = models.TextField(blank=True)
     last_verified = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    # 신뢰도 기반 안심 검증 마크 — 관리자 큐레이션
+    okcheon_news_recommended = models.BooleanField(default=False)
+    counseling_center_recommended = models.BooleanField(default=False)
+
     created_by = models.ForeignKey(
         'users.User', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='registered_places',
@@ -37,3 +42,13 @@ class LocalPlace(models.Model):
             models.Index(fields=['category']),
             GinIndex(fields=['subsidy_tags'], name='idx_places_subsidy_tags'),
         ]
+
+
+class PlaceEndorsement(models.Model):
+    place = models.ForeignKey(LocalPlace, on_delete=models.CASCADE, related_name='endorsements')
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='place_endorsements')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'place_endorsements'
+        unique_together = [['place', 'user']]
