@@ -27,6 +27,28 @@ from .serializers import ChecklistItemSerializer, PolicyCardSerializer, PolicyDe
 logger = logging.getLogger(__name__)
 
 
+def _cache_get(key):
+    try:
+        return cache.get(key)
+    except Exception as e:
+        logger.warning('캐시 조회 실패 (무시): %s', e)
+        return None
+
+
+def _cache_set(key, value, timeout):
+    try:
+        cache.set(key, value, timeout)
+    except Exception as e:
+        logger.warning('캐시 저장 실패 (무시): %s', e)
+
+
+def _cache_delete(key):
+    try:
+        cache.delete(key)
+    except Exception as e:
+        logger.warning('캐시 삭제 실패 (무시): %s', e)
+
+
 class PolicyPreviewView(APIView):
     """비로그인 홈용 최신·마감임박 정책 3개."""
 
@@ -156,12 +178,12 @@ def _parse_checklist_bg(policy_id: int) -> None:
             data = list(ChecklistItemSerializer(
                 policy.checklist_items.order_by('order'), many=True
             ).data)
-            cache.set(key, {'items': data, 'parsing': False}, CHECKLIST_CACHE_TTL)
+            _cache_set(key, {'items': data, 'parsing': False}, CHECKLIST_CACHE_TTL)
         else:
-            cache.set(key, {'items': [], 'parsing': False}, CHECKLIST_CACHE_TTL)
+            _cache_set(key, {'items': [], 'parsing': False}, CHECKLIST_CACHE_TTL)
     except Exception:
         logger.exception('Background checklist parse failed for policy %s', policy_id)
-        cache.delete(key)
+        _cache_delete(key)
 
 
 class PolicyChecklistView(APIView):
@@ -169,7 +191,7 @@ class PolicyChecklistView(APIView):
 
     def get(self, request, policy_id):
         key = checklist_cache_key(policy_id)
-        cached = cache.get(key)
+        cached = _cache_get(key)
         if cached is not None:
             return Response(cached)
 
@@ -185,17 +207,17 @@ class PolicyChecklistView(APIView):
         if items:
             data = list(ChecklistItemSerializer(items, many=True).data)
             result = {'items': data, 'parsing': False}
-            cache.set(key, result, CHECKLIST_CACHE_TTL)
+            _cache_set(key, result, CHECKLIST_CACHE_TTL)
             return Response(result)
 
         # 체크리스트 없음 — raw_text가 있으면 백그라운드 파싱 트리거
         if policy.raw_text and policy.raw_text.strip():
             result = {'items': [], 'parsing': True}
-            cache.set(key, result, CHECKLIST_PARSING_TTL)
+            _cache_set(key, result, CHECKLIST_PARSING_TTL)
             threading.Thread(target=_parse_checklist_bg, args=(policy_id,), daemon=True).start()
         else:
             result = {'items': [], 'parsing': False}
-            cache.set(key, result, CHECKLIST_CACHE_TTL)
+            _cache_set(key, result, CHECKLIST_CACHE_TTL)
 
         return Response(result)
 
