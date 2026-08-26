@@ -17,6 +17,11 @@ class PlaceListView(APIView):
         return [AllowAny()]
 
     def get(self, request):
+        my_endorsed = request.query_params.get('my_endorsed') in ('true', '1')
+
+        if my_endorsed and not request.user.is_authenticated:
+            return Response([])
+
         places = LocalPlace.objects.filter(is_active=True).annotate(
             endorsement_count_anno=Count('endorsements'),
         )
@@ -26,6 +31,11 @@ class PlaceListView(APIView):
                     PlaceEndorsement.objects.filter(place=OuterRef('pk'), user=request.user)
                 ),
             )
+            if my_endorsed:
+                places = places.filter(
+                    pk__in=PlaceEndorsement.objects.filter(user=request.user).values('place_id')
+                )
+
         places = places.order_by('name')
         return Response(
             LocalPlaceSerializer(places, many=True, context={'request': request}).data

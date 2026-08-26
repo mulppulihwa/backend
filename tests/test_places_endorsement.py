@@ -126,9 +126,39 @@ def test_create_view_exposes_endorsement_fields_via_fallback():
     client.force_authenticate(user=user)
     res = client.post('/api/places/', {
         'name': '옥천 마트',
-        'category': '식품',
+        'category': '생활',
         'address': '옥천군 옥천읍 어딘가',
     })
     assert res.status_code == 201
     assert res.data['endorsement_count'] == 0
     assert res.data['is_endorsed'] is False
+
+
+@pytest.mark.django_db
+def test_my_endorsed_filter_returns_only_endorsed_places():
+    liked = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    not_liked = LocalPlace.objects.create(name='옥천 카페', category='생활', address='옥천군 옥천읍 어딘가')
+    user = User.objects.create_user(kakao_id='endorser8')
+    other = User.objects.create_user(kakao_id='endorser9')
+    PlaceEndorsement.objects.create(place=liked, user=user)
+    PlaceEndorsement.objects.create(place=liked, user=other)
+    PlaceEndorsement.objects.create(place=not_liked, user=other)
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    res = client.get('/api/places/?my_endorsed=true')
+    assert res.status_code == 200
+    assert [p['id'] for p in res.data] == [liked.id]
+    # 다른 유저의 추천도 함께 집계돼야 함 (본인 추천만 세는 조인 버그 방지)
+    assert res.data[0]['endorsement_count'] == 2
+
+
+@pytest.mark.django_db
+def test_my_endorsed_filter_requires_auth():
+    place = LocalPlace.objects.create(name='옥천 식당', category='음식점', address='옥천군 옥천읍 어딘가')
+    user = User.objects.create_user(kakao_id='endorser10')
+    PlaceEndorsement.objects.create(place=place, user=user)
+
+    res = APIClient().get('/api/places/?my_endorsed=true')
+    assert res.status_code == 200
+    assert res.data == []
