@@ -50,7 +50,8 @@
 
 ## 남은 작업 (별도 확인 필요)
 
-- **부소담악**(명소): 정확한 도로명주소를 받아야 등록 가능. 랜드마크 이름만으로는
-  `geocode_address()`(카카오 주소 검색 API, 키워드 검색 아님)가 좌표를 못 찾음
-- **맥우직매장(id=173) 좌표 미설정**: `KAKAO_LOCAL_API_KEY` 확인 후 재시도하거나
-  Admin에서 `lat`/`lng` 수동 입력 필요
+- ~~부소담악(명소): 정확한 도로명주소를 받아야 등록 가능~~ → 주소 확인 후
+  [9a268fc](https://github.com/mulppulihwa/backend/commit/9a268fc)에서 등록 완료
+  (`task_regeocode-missing-coordinates.md`, `task_busodam-ak-registration.md` 참고)
+- ~~맥우직매장(id=173) 좌표 미설정~~ → `regeocode_places` 커맨드로 해결
+  (`task_regeocode-missing-coordinates.md` 참고)
