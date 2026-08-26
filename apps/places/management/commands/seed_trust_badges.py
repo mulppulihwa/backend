@@ -12,6 +12,7 @@ BADGES = [
     ('맥우직매장', 'counseling_center_recommended'),
     ('배바우손두부', 'okcheon_news_recommended'),
     ('옥천체육센터', 'okcheon_news_recommended'),
+    ('부소담악', 'counseling_center_recommended'),
 ]
 
 NEW_PLACES = [
@@ -19,6 +20,11 @@ NEW_PLACES = [
         'name': '맥우직매장',
         'category': '음식점',
         'address': '충청북도 옥천군 군서면 성왕로 975',
+    },
+    {
+        'name': '부소담악',
+        'category': '명소',
+        'address': '충청북도 옥천군 군북면 추소리 234-2',
     },
 ]
 
