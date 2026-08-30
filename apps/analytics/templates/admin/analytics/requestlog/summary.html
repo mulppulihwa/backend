@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>요약</h2>
+    <table>
+      <tr><th>전체 누적 요청 수</th><td>{{ total }}</td></tr>
+      <tr><th>오늘 요청 수</th><td>{{ today_count }}</td></tr>
+      <tr><th>최근 7일 요청 수</th><td>{{ week_count }}</td></tr>
+      <tr><th>누적 로그인 유저 수 (요청 남긴 적 있는)</th><td>{{ unique_users_total }}</td></tr>
+      <tr><th>최근 7일 로그인 유저 수</th><td>{{ unique_users_week }}</td></tr>
+    </table>
+  </div>
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>최근 7일 — 가장 많이 호출된 엔드포인트 (id 뭉개서 집계)</h2>
+    <table>
+      <thead><tr><th>엔드포인트</th><th>호출 수</th></tr></thead>
+      <tbody>
+        {% for row in top_actions %}
+        <tr><td>{{ row.action }}</td><td>{{ row.count }}</td></tr>
+        {% empty %}
+        <tr><td colspan="2">데이터 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>최근 7일 — 가장 많이 조회된 구체적인 경로 (특정 리소스 단위)</h2>
+    <table>
+      <thead><tr><th>경로</th><th>호출 수</th></tr></thead>
+      <tbody>
+        {% for row in top_paths %}
+        <tr><td>{{ row.path }}</td><td>{{ row.count }}</td></tr>
+        {% empty %}
+        <tr><td colspan="2">데이터 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <h2>최근 14일 일별 요청 수</h2>
+    <table>
+      <thead><tr><th>날짜</th><th>요청 수</th></tr></thead>
+      <tbody>
+        {% for row in daily %}
+        <tr><td>{{ row.day }}</td><td>{{ row.count }}</td></tr>
+        {% empty %}
+        <tr><td colspan="2">데이터 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

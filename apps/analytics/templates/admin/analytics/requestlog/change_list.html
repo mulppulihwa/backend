@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li><a href="{% url 'admin:analytics_requestlog_summary' %}">📊 요약 보기</a></li>
+  {{ block.super }}
+{% endblock %}
